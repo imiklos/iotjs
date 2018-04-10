@@ -204,14 +204,30 @@ socket9.on('secureConnect', function(){
  handshake_done = true;
 });
 
-socket9.on('end', function() {
- server3.close();
-});
-
 socket9.on('data', function(data) {
  server_message = data.toString();
  socket9.write('Client hello');
  socket9.end();
+});
+
+var socket10 = tls.connect({port: port, host: "localhost"});
+
+socket10.on('data', function(data) {
+  server_message = data.toString();
+  socket10.end();
+});
+
+socket10._socket.on('connect', function() {
+  socket10.write("Client ");
+  socket10.write("hello");
+});
+
+socket10.on('secureConnect', function() {
+  socket10.write('Client hello');
+});
+
+socket10.on('end', function() {
+  server3.close();
 });
 
 process.on('exit', function() {
