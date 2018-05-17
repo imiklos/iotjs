@@ -7,7 +7,14 @@ sudo: required
 services:
   - docker
 
+addons:
+  hosts:
+    - httpbin.org
+    - api.artik.cloud
+
 before_install:
+  - cat /etc/hosts
+  - tools/openssl_s.sh &
   - if [[ "$RUN_DOCKER" == "yes" ]]; then docker pull iotjs/ubuntu:0.6; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then tools/brew-install-deps.sh; fi
   - if [[ "$OPTS" == "misc" ]]; then tools/apt-get-install-deps.sh; fi
