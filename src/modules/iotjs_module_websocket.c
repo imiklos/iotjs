@@ -16,6 +16,7 @@
 #include "iotjs_module_websocket.h"
 #include <time.h>
 #include <stdlib.h>
+#include <math.h>
 
 static char WS_GUID[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -154,12 +155,125 @@ JS_FUNCTION(CheckHandshakeKey) {
 
   return jerry_create_boolean(true);
 }
+JS_FUNCTION(encodeWebSocket) {
+  DJS_CHECK_THIS();
+  DJS_CHECK_ARGS(1, string);
+  // jerry_value_t jnum = JS_GET_ARG(0, number);
+  // int frame_type = jerry_get_number_value(jnum);
+  iotjs_string_t jstring = JS_GET_ARG(0, string);
+  const char *msg = iotjs_string_data(&jstring);
+  uint32_t size = iotjs_string_size(&jstring);
+  int pos = 0;
+  unsigned char frame_type = 0x1;
+  unsigned char *buffer = IOTJS_CALLOC(256 ,unsigned char);
+  buffer[pos++] = (unsigned char)frame_type; // text frame
+
+  if(size <= 125) {
+    buffer[pos++] = size;
+  }
+  else if(size <= 65535) {
+    buffer[pos++] = 126; //16 bit length follows
+
+    buffer[pos++] = (size >> 8) & 0xFF; // leftmost first
+    buffer[pos++] = size & 0xFF;
+  }
+  else { // >2^16-1 (65535)
+    buffer[pos++] = 127; //64 bit length follows
+
+    // write 8 bytes length (significant first)
+
+    // since msg_length is int it can be no longer than 4 bytes = 2^32-1
+    // padd zeroes for the first 4 bytes
+    for(int i=3; i>=0; i--) {
+      buffer[pos++] = 0;
+    }
+    // write the actual 32bit msg_length in the next 4 bytes
+    for(int i=3; i>=0; i--) {
+      buffer[pos++] = ((size >> 8*i) & 0xFF);
+    }
+  }
+  memcpy((void*)(buffer+pos), msg, size);
+
+  return jerry_create_string_from_utf8(buffer+pos);
+
+}
+JS_FUNCTION(decodeWebSocket) {
+  DJS_CHECK_THIS();
+  DJS_CHECK_ARGS(1, object);
+  jerry_value_t jbuffer = JS_GET_ARG(0, object);
+  iotjs_bufferwrap_t *buffer_wrap = iotjs_bufferwrap_from_jbuffer(jbuffer);
+  size_t len = iotjs_bufferwrap_length(buffer_wrap);
+  char* in_buffer = buffer_wrap->buffer;
+
+  if(len < 3) {
+   return jerry_create_string_from_utf8((unsigned char *)"INCOMPLATE_FRAME");
+  }
+
+  unsigned char msg_opcode = in_buffer[0] & 0x0F;
+  unsigned char msg_fin = (in_buffer[0] >> 7) & 0x01;
+  unsigned char msg_masked = (in_buffer[1] >> 7) & 0x01;
+
+  uint64_t payload_length = 0;
+  int pos = 2;
+  uint8_t length_field = in_buffer[1] & (~0x80);
+  unsigned int mask = 0;
+
+  if(length_field <= 125) {
+    payload_length = length_field;
+  }
+  else if(length_field == 126) {
+    payload_length = (
+      (in_buffer[2] << 8 |
+      in_buffer[3])
+    );
+    pos += 2;
+  }
+  else if(length_field == 127) { //msglen is 64bit!
+    payload_length = (
+      (in_buffer[2] * (uint64_t)pow(2, 56)) |
+      (in_buffer[3] * (uint64_t)pow(2, 48)) |
+      (in_buffer[4] * (uint64_t)pow(2, 40)) |
+      (in_buffer[5] * (uint64_t)pow(2, 32)) |
+      (in_buffer[6] * (uint64_t)pow(2, 24)) |
+      (in_buffer[7] * (uint64_t)pow(2, 16)) |
+      (in_buffer[8] * (uint64_t)pow(2, 8))  |
+      (in_buffer[9])
+    );
+    pos += 8;
+  }
+
+  if(len < (size_t)(payload_length+pos)) {
+    return jerry_create_string_from_utf8((const unsigned char *)"incomplate frame");
+  }
+
+  if(msg_masked) {
+    mask = *((unsigned int*)(in_buffer+pos));
+    pos += 4;
+
+    // unmask
+    char *c = in_buffer+pos;
+    for(uint8_t i=0; i<payload_length; i++) {
+      c[i] = c[i] ^ ((unsigned char*)(&mask))[i%4];
+    }
+  }
+
+  jerry_char_t *out = IOTJS_CALLOC(payload_length, unsigned char);
+  memcpy((void *)out, (void *)(in_buffer+pos), payload_length);
+  out[payload_length] = 0;
+
+  IOTJS_UNUSED(msg_fin);
+  IOTJS_UNUSED(msg_opcode);
+
+  return jerry_create_string_from_utf8(out);
+}
 
 jerry_value_t InitWebsocket() {
  IOTJS_UNUSED(WS_GUID);
  jerry_value_t jws = jerry_create_object();
  iotjs_jval_set_method(jws, "checkHandshakeKey", CheckHandshakeKey);
  iotjs_jval_set_method(jws, "prepareHandshake", PrepareHandshakeRequest);
+ iotjs_jval_set_method(jws, "decodeWebSocket", decodeWebSocket);
+ iotjs_jval_set_method(jws, "encodeWebSocket", encodeWebSocket);
 
  return jws;
 }

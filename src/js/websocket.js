@@ -33,7 +33,11 @@ function Websocket(options) {
 
   });
   */
+}
 
+Websocket.prototype.send = function(msg) {
+  var self = this;
+  self._socket.write(native.encodeWebSocket(msg));
 }
 
 Websocket.prototype.connect = function(host) {
@@ -52,6 +56,7 @@ Websocket.prototype.connect = function(host) {
         self._firstMessage = false;
       }
     } else {
+      data = native.decodeWebSocket(data);
       self.emit('data', data);
     }
   });
