@@ -19,3 +19,25 @@
 #include "mbedtls/base64.h"
 #include "iotjs_handlewrap.h"
 #include "iotjs_reqwrap.h"
+
+enum {
+  WS_OP_CONTINUE = 0x00,
+  WS_OP_UTF8 = 0x01,
+  WS_OP_BINARY = 0x02,
+  WS_OP_TERMINATE = 0x08,
+  WS_OP_PING = 0x09,
+  WS_OP_PONG = 0x0a,
+} iotjs_websocket_opcodes;
+
+
+typedef struct {
+  struct {
+    uint64_t length;
+    unsigned char *buffer;
+  } tcp_buff;
+
+  struct {
+    uint64_t length;
+    unsigned char *buffer;
+  } ws_buff;
+} iotjs_ws_client_t;

@@ -47,7 +47,7 @@ Websocket.prototype.connect = function(host) {
   this._socket.on('connect', function() {
     self._socket.write(sendHandshake(host, '/dummy'));
   });
-  this._socket.connect(9999, host);
+  this._socket.connect(8080, host);
 
   this._socket.on('data', function(data) {
     if (self._firstMessage) {
@@ -56,7 +56,9 @@ Websocket.prototype.connect = function(host) {
         self._firstMessage = false;
       }
     } else {
-      data = native.decodeWebSocket(data);
+      data = native.decodeFrame(data);
+      // if utf8
+      //data = data.toString();
       self.emit('data', data);
     }
   });

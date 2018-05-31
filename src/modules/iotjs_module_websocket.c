@@ -267,13 +267,104 @@ JS_FUNCTION(decodeWebSocket) {
   return jerry_create_string_from_utf8(out);
 }
 
+
+JS_FUNCTION(decodeFrame) {
+  DJS_CHECK_THIS();
+  DJS_CHECK_ARGS(1, object);
+
+  jerry_value_t jbuffer = JS_GET_ARG(0, object);
+  iotjs_bufferwrap_t *buffer_wrap = iotjs_bufferwrap_from_jbuffer(jbuffer);
+
+  unsigned char *buff_ptr = (unsigned char *)buffer_wrap->buffer;
+
+  uint8_t fin_bit = (buff_ptr[0] >> 7) & 0x01;
+  uint8_t opcode = buff_ptr[0] & 0x0F;
+
+  uint8_t payload_byte = (buff_ptr[1]) & 0x7F;
+
+  buff_ptr += 2;
+
+  IOTJS_UNUSED(fin_bit);
+
+  uint8_t *payload_len = NULL;
+  if (!(payload_byte ^ 0x7E)) {
+    payload_len = (uint8_t *)malloc(sizeof(uint8_t) * sizeof(uint16_t));
+    payload_len[0] = buff_ptr[1];
+    payload_len[1] = buff_ptr[0];
+    buff_ptr += sizeof(uint16_t);
+  } else if (!(payload_byte ^ 0x7F)) {
+    payload_len = (uint8_t *)malloc(sizeof(uint8_t) * sizeof(uint64_t));
+    for (uint8_t i = 0; i < sizeof(uint64_t); i++) {
+      payload_len[i] = buff_ptr[sizeof(uint64_t) - 1 - i];
+    }
+    buff_ptr += sizeof(uint64_t);
+  } else {
+    payload_len = &payload_byte;
+  }
+
+  uint8_t mask = (buff_ptr[1] >> 7) & 0x01;
+  uint32_t *mask_key = NULL;
+  if (mask) {
+    mask_key = (uint32_t *)buff_ptr;
+    buff_ptr += sizeof(uint32_t);
+
+    for (uint64_t i = 0; i < *payload_len; i++) {
+      buff_ptr[i] ^= ((unsigned char *)(mask_key))[i % 4];
+    }
+  }
+
+  jerry_value_t ret_buff = iotjs_bufferwrap_create_buffer(*payload_len);
+  iotjs_bufferwrap_t *ret_wrap = iotjs_bufferwrap_from_jbuffer(ret_buff);
+
+  switch (opcode) {
+    case WS_OP_CONTINUE: {
+      // concat buffers
+      break;
+    }
+
+    case WS_OP_UTF8: {
+      // assert to have utf8
+      jerry_release_value(ret_buff);
+      if (!jerry_is_valid_utf8_string(buff_ptr, *payload_len)) {
+        JS_CREATE_ERROR(COMMON, "not valid utf8 string in websocket");
+      }
+      return jerry_create_string_sz_from_utf8((const jerry_char_t *)buff_ptr, *payload_len);
+    }
+
+    case WS_OP_BINARY: {
+      memcpy(ret_wrap->buffer, buff_ptr, *payload_len);
+      ret_wrap->length = *payload_len;
+      // binary data
+    }
+
+    case WS_OP_TERMINATE: {
+      // close connection
+    }
+
+    case WS_OP_PING: {
+      //
+    }
+
+    case WS_OP_PONG: {
+      //
+    }
+
+    default:
+      return JS_CREATE_ERROR(COMMON, "Unknown WebSocket opcode");
+      break;
+  }
+
+
+
+  return jerry_create_undefined();
+}
+
 jerry_value_t InitWebsocket() {
  IOTJS_UNUSED(WS_GUID);
  jerry_value_t jws = jerry_create_object();
  iotjs_jval_set_method(jws, "checkHandshakeKey", CheckHandshakeKey);
  iotjs_jval_set_method(jws, "prepareHandshake", PrepareHandshakeRequest);
- iotjs_jval_set_method(jws, "decodeWebSocket", decodeWebSocket);
- iotjs_jval_set_method(jws, "encodeWebSocket", encodeWebSocket);
+ iotjs_jval_set_method(jws, "decodeFrame", decodeFrame);
 
  return jws;
 }
