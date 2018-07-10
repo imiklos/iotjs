@@ -54,4 +54,5 @@ typedef struct {
     char first_byte;
     bool masked;
   } ws_buff;
+  unsigned char *generated_key;
 } iotjs_wsclient_t;
