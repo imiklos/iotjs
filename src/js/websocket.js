@@ -19,6 +19,9 @@
  var tls = require('tls');
 
 util.inherits(Websocket, EventEmitter);
+util.inherits(Server, EventEmitter);
+util.inherits(WebsocketClient, EventEmitter);
+
 
 function WebSocketHandle(client) {
   this.client = client;
@@ -39,12 +42,118 @@ function Websocket(options) {
   this._secure = false;
 }
 
+function ServerHandle(server) {
+  this.clients = [];
+  this._server = server;
+  console.log("server: " + Object.keys(this));
+  console.log("server: " + Object.keys(this._server));
+  console.log("server: " + Object.keys(this._server._netserver));
+
+  native.wsInit(this);
+}
+
+function WebsocketClient(socket) {
+  if (!(this instanceof WebsocketClient)) {
+    return new WebsocketClient(socket);
+  }
+  this._socket = socket;
+
+  this.readyState = 'CONNECTING';
+  console.log(this.readyState);
+  this._secure = false;
+}
+
+function connectionListener(socket) {
+  console.log("Client connected");
+  var websocket = new WebsocketClient(socket);
+  console.log(this instanceof net.Server);
+  console.log("connLis" + Object.keys(this));
+  this._serverHandle.clients.push(websocket);
+  var self = this;
+  websocket._socket.on('data', function (data) {
+    var id = self._serverHandle.clients.indexOf(websocket);
+    if (self._serverHandle.clients[id].readyState == 'CONNECTING') {
+      parseServerHandshakeData(data, websocket);
+    } else {
+      self._serverHandle.ondata(data, websocket)
+    }
+  })
+  console.log(Object.keys(this));
+}
+
+function parseServerHandshakeData(data, client) {
+  console.log("serverhand " + Object.keys(this));
+  data = data.toString();
+  var res = data.split("\r\n");
+  var method = res[0].split(" ");
+
+  var headers = { 'Connection': '',
+                  'Upgrade': '',
+                  'Host': '',
+                  'Sec-WebSocket-Key': '',
+                  'Sec-WebSocket-Version': -1
+                };
+
+  for(var i = 1; i < res.length; i++) {
+    var temp = res[i].split(": ");
+    headers[temp[0]] = temp[1];
+  }
+
+  var response = '';
+  if (method[0] == 'GET' &&
+      method[2] == 'HTTP/1.1' &&
+      headers['Connection'] == 'Upgrade' &&
+      headers['Upgrade'] == 'websocket' && (
+      headers['Sec-WebSocket-Version'] > 7 &&
+      headers['Sec-WebSocket-Version'] <= 13)) {
+        response = native.ReceiveHandshakeData(
+                            headers['Sec-WebSocket-Key'], // key
+                            method[1] // path
+                          ).toString();
+  } else {
+    // TODO: Throw error (not valid headers)
+  }
+  client.readyState = 'OPEN';
+  client._socket.write(response);
+  // serverHandshakeDone(client, server);
+}
+
+function Server(options, listener) {
+  if (!(this instanceof Server)) {
+    return new Server(options);
+  }
+  EventEmitter.call(this);
+  if (options.port) {
+    this._netserver = net.createServer(options, connectionListener);
+    this._netserver._serverHandle = new ServerHandle(this);
+    this._netserver.listen(options.port);
+    console.log('Listening on port: ' + options.port);
+  }
+
+  // if (listener) {
+  //   this._server.on("open", listener);
+  // }
+
+}
+
+ServerHandle.prototype.ondata = function (data, client) {
+  console.log(data);
+  console.log(Object.keys(client));
+  console.log(Object.keys(this));
+  // var id = this.clients.indexOf(client);
+  native.wsReceive(this, data, client);
+}
+
+// ServerHandle.prototype.onmessage = function (msg, client) {
+// // ￼   client._socket.emit('message', msg);
+// ￼ }
+
 WebSocketHandle.prototype.onmessage = function(msg) {
   this.client.emit('message', msg);
 };
 
 WebSocketHandle.prototype.ondata = function(data) {
-  native.wsReceive(this, data);
+  native.wsReceive(this, data, this);
 };
 
 WebSocketHandle.prototype.onhandshakedone = function(remaining) {
@@ -155,7 +264,7 @@ Websocket.prototype.connect = function(url, port, path, callback) {
 
   this._socket.on('data', function(data) {
     if (self._firstMessage) {
-      var remaining_data = native.parseHandshakeData(data);
+      var remaining_data = native.parseHandshakeData(data, self._handle);
       self._handle.onhandshakedone(remaining_data);
     } else {
       self._handle.ondata(data);
@@ -195,5 +304,5 @@ Websocket.prototype.send = function(message, opts, cb) {
     this._handle.sendFrame(buff, cb);
   }
 };
-
 exports.Websocket = Websocket;
+exports.Server = Server;
