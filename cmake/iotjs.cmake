@@ -347,7 +347,7 @@ endforeach()
 # Common compile flags
 iotjs_add_compile_flags(-Wall)
 if(NOT USING_MSVC)
-  iotjs_add_compile_flags(-Wextra -Werror -Wno-unused-parameter)
+  iotjs_add_compile_flags(-Wextra -Wno-unused-parameter)
   iotjs_add_compile_flags(-Wsign-conversion -std=gnu99)
 endif()
 
@@ -412,6 +412,9 @@ foreach(MODULE_EXTRA_CMAKE_FILE ${EXTRA_CMAKE_FILES})
   unset(MODULE_LIBS)
 endforeach()
 
+set(IOTJS_NAPI_SRC)
+  file(GLOB IOTJS_NAPI_SRC ${IOTJS_SOURCE_DIR}/napi/*.c)
+
 # Collect all sources into LIB_IOTJS_SRC
 file(GLOB LIB_IOTJS_SRC ${IOTJS_SOURCE_DIR}/*.c)
 list(APPEND LIB_IOTJS_SRC
@@ -419,6 +422,7 @@ list(APPEND LIB_IOTJS_SRC
   ${IOTJS_SOURCE_DIR}/iotjs_js.h
   ${IOTJS_NATIVE_MODULE_SRC}
   ${IOTJS_PLATFORM_SRC}
+	${IOTJS_NAPI_SRC}
 )
 
 separate_arguments(EXTERNAL_INCLUDE_DIR)
@@ -476,15 +480,107 @@ if(FEATURE_DEBUGGER)
   iotjs_add_compile_flags("-DJERRY_DEBUGGER")
 endif()
 
+file(GLOB IOTJS_HEADERS "${ROOT_DIR}/src/*.h")
+file(GLOB JERRY_HEADERS "${ROOT_DIR}/deps/jerry/jerry-core/include/*.h")
+file(GLOB LIBUV_HEADERS "${ROOT_DIR}/deps/libtuv/include/*.h")
+
+set(IOTJS_PUBLIC_HEADERS
+  "${ROOT_DIR}/include/iotjs.h"
+  "${ROOT_DIR}/include/node_api.h"
+  "${ROOT_DIR}/include/node_api_types.h"
+  ${IOTJS_HEADERS}
+  ${JERRY_HEADERS}
+  ${LIBUV_HEADERS}
+)
+
 # Configure the libiotjs.a
-set(TARGET_STATIC_IOTJS libiotjs)
-add_library(${TARGET_STATIC_IOTJS} STATIC ${LIB_IOTJS_SRC})
-set_target_properties(${TARGET_STATIC_IOTJS} PROPERTIES
+# set(TARGET_STATIC_IOTJS libiotjs)
+# add_library(${TARGET_STATIC_IOTJS} STATIC ${LIB_IOTJS_SRC})
+# set_target_properties(${TARGET_STATIC_IOTJS} PROPERTIES
+#   OUTPUT_NAME iotjs
+#   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+# )
+# target_include_directories(${TARGET_STATIC_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
+# target_link_libraries(${TARGET_STATIC_IOTJS}
+#   ${JERRY_LIBS}
+#   ${TUV_LIBS}
+#   libhttp-parser
+#   ${MBEDTLS_LIBS}
+#   ${EXTERNAL_LIBS}
+# )
+#
+# if("${LIB_INSTALL_DIR}" STREQUAL "")
+#   set(LIB_INSTALL_DIR "lib")
+# endif()
+#
+# if("${BIN_INSTALL_DIR}" STREQUAL "")
+#   set(BIN_INSTALL_DIR "bin")
+# endif()
+#
+# install(TARGETS ${TARGET_STATIC_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
+#
+# # Install headers
+# if("${INCLUDE_INSTALL_DIR}" STREQUAL "")
+#   set(INCLUDE_INSTALL_DIR "include/iotjs")
+# endif()
+# file(GLOB IOTJS_HEADERS include/*.h)
+# install(FILES ${IOTJS_HEADERS} DESTINATION ${INCLUDE_INSTALL_DIR})
+#
+# # Configure the libiotjs.so
+# if (NOT BUILD_LIB_ONLY AND CREATE_SHARED_LIB)
+#   set(TARGET_SHARED_IOTJS shared_iotjs)
+#   add_library(${TARGET_SHARED_IOTJS} SHARED)
+#   set_target_properties(${TARGET_SHARED_IOTJS} PROPERTIES
+#     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+#     LIBRARY_OUTPUT_NAME iotjs
+#     LINKER_LANGUAGE C
+#   )
+#   target_link_libraries(${TARGET_SHARED_IOTJS}
+#     -Wl,--whole-archive
+#     ${TARGET_STATIC_IOTJS}
+#     ${JERRY_LIBS}
+#     ${TUV_LIBS}
+#     libhttp-parser
+#     ${MBEDTLS_LIBS}
+#     -Wl,--no-whole-archive
+#     ${EXTERNAL_LIBS})
+#   install(TARGETS ${TARGET_SHARED_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
+# endif()
+#
+# # Configure the iotjs executable
+# if(NOT BUILD_LIB_ONLY)
+#   set(TARGET_IOTJS iotjs)
+#   add_executable(${TARGET_IOTJS} ${ROOT_DIR}/src/platform/linux/iotjs_linux.c)
+#   set_target_properties(${TARGET_IOTJS} PROPERTIES
+#     LINK_FLAGS "${IOTJS_LINKER_FLAGS}"
+#     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+#   )
+#   target_include_directories(${TARGET_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
+#   target_link_libraries(${TARGET_IOTJS} ${TARGET_STATIC_IOTJS})
+#   install(TARGETS ${TARGET_IOTJS} DESTINATION ${BIN_INSTALL_DIR})
+#
+#   add_subdirectory(test)
+# endif()
+# Configure the libiotjs
+set(TARGET_LIB_IOTJS libiotjs)
+add_library(${TARGET_LIB_IOTJS} SHARED ${LIB_IOTJS_SRC})
+add_dependencies(${TARGET_LIB_IOTJS}
+  ${JERRY_LIBS}
+  ${TUV_LIBS}
+  libhttp-parser
+  ${MBEDTLS_LIBS}
+	${EXTERNAL_LIBS}
+)
+set_target_properties(${TARGET_LIB_IOTJS} PROPERTIES
   OUTPUT_NAME iotjs
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  PUBLIC_HEADER "${IOTJS_PUBLIC_HEADERS}"
 )
-target_include_directories(${TARGET_STATIC_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
-target_link_libraries(${TARGET_STATIC_IOTJS}
+target_include_directories(${TARGET_LIB_IOTJS}
+  PRIVATE ${IOTJS_INCLUDE_DIRS} ${DBUS_INCLUDE_DIRS})
+target_link_libraries(${TARGET_LIB_IOTJS}
+  ${CMAKE_DL_LIBS}
   ${JERRY_LIBS}
   ${TUV_LIBS}
   libhttp-parser
@@ -500,47 +596,24 @@ if("${BIN_INSTALL_DIR}" STREQUAL "")
   set(BIN_INSTALL_DIR "bin")
 endif()
 
-install(TARGETS ${TARGET_STATIC_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
-
-# Install headers
-if("${INCLUDE_INSTALL_DIR}" STREQUAL "")
-  set(INCLUDE_INSTALL_DIR "include/iotjs")
-endif()
-file(GLOB IOTJS_HEADERS include/*.h)
-install(FILES ${IOTJS_HEADERS} DESTINATION ${INCLUDE_INSTALL_DIR})
-
-# Configure the libiotjs.so
-if (NOT BUILD_LIB_ONLY AND CREATE_SHARED_LIB)
-  set(TARGET_SHARED_IOTJS shared_iotjs)
-  add_library(${TARGET_SHARED_IOTJS} SHARED)
-  set_target_properties(${TARGET_SHARED_IOTJS} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    LIBRARY_OUTPUT_NAME iotjs
-    LINKER_LANGUAGE C
-  )
-  target_link_libraries(${TARGET_SHARED_IOTJS}
-    -Wl,--whole-archive
-    ${TARGET_STATIC_IOTJS}
-    ${JERRY_LIBS}
-    ${TUV_LIBS}
-    libhttp-parser
-    ${MBEDTLS_LIBS}
-    -Wl,--no-whole-archive
-    ${EXTERNAL_LIBS})
-  install(TARGETS ${TARGET_SHARED_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
-endif()
-
 # Configure the iotjs executable
 if(NOT BUILD_LIB_ONLY)
   set(TARGET_IOTJS iotjs)
+  message(STATUS "CMAKE_BINARY_DIR        ${CMAKE_BINARY_DIR}")
+  message(STATUS "BINARY_INSTALL_DIR      ${INSTALL_PREFIX}/bin")
+  message(STATUS "LIBRARY_INSTALL_DIR     ${INSTALL_PREFIX}/lib")
+
   add_executable(${TARGET_IOTJS} ${ROOT_DIR}/src/platform/linux/iotjs_linux.c)
   set_target_properties(${TARGET_IOTJS} PROPERTIES
     LINK_FLAGS "${IOTJS_LINKER_FLAGS}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
   )
   target_include_directories(${TARGET_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
-  target_link_libraries(${TARGET_IOTJS} ${TARGET_STATIC_IOTJS})
-  install(TARGETS ${TARGET_IOTJS} DESTINATION ${BIN_INSTALL_DIR})
-
-  add_subdirectory(test)
+  target_link_libraries(${TARGET_IOTJS} ${TARGET_LIB_IOTJS})
+  install(TARGETS ${TARGET_IOTJS} ${TARGET_LIB_IOTJS}
+          RUNTIME DESTINATION "${INSTALL_PREFIX}/bin"
+          LIBRARY DESTINATION "${INSTALL_PREFIX}/lib"
+          PUBLIC_HEADER DESTINATION "${INSTALL_PREFIX}/include/iotjs")
+else()
+  install(TARGETS ${TARGET_LIB_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
 endif()

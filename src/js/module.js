@@ -16,12 +16,9 @@
 
 var Builtin = require('builtin');
 var fs = Builtin.require('fs');
-var dynamicloader;
-try {
-  dynamicloader = Builtin.require('dynamicloader');
-} catch (e) {
-  // the 'dynamicloader' module is not enabled, nothing to do.
-}
+var dynamicloaderModule = Builtin.require('dynamicloader');
+var dynamicloader = dynamicloaderModule.dynamicloader;
+var dynamicnativeloader = dynamicloaderModule.OpenNativeModule;
 
 function normalizePathString(path) {
   // Assume all path separators are '/'
@@ -203,6 +200,9 @@ Module.resolveFilepath = function(id, directories) {
     if (dynamicloader && (filepath = tryPath(modulePath, '.iotjs'))) {
       return filepath;
     }
+    if (dynamicloader && (filepath = tryPath(modulePath, '.node'))) {
+      return filepath;
+    }
   }
 
   return false;
@@ -276,6 +276,8 @@ Module.load = function(id, parent) {
     module.exports = JSON.parse(source);
   } else if (dynamicloader && ext === 'iotjs') {
     module.exports = dynamicloader(modPath);
+  } else if (dynamicnativeloader && ext === 'node') {
+    module.exports = dynamicnativeloader(modPath);
   }
 
   Module.cache[modPath] = module;

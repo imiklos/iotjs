@@ -1,0 +1,16 @@
+sudo apt-get install libboost-dev libboost-program-options-dev \
+ libboost-thread-dev uuid-dev libssl-dev libtool libglib2.0-dev \
+ libcap-dev libcurl4-openssl-dev autotools-dev autoconf libsqlite3-dev scons
+git clone https://github.com/imiklos/iotjs.git
+cd iotjs
+git checkout napi-moka
+git submodule init
+git submodule update
+cd deps/jerry
+git apply ../../jerry-napi-patch
+cd ../libtuv
+git apply ../../libtuv-napi-patch
+cd ../..
+./tools/build.py --clean --no-init-submodule --create-shared-lib --jerry-profile=es2015-subset
+npm install (10es node)
+./build/x86_64-linux/debug/bin/iotjs src/js/app.js

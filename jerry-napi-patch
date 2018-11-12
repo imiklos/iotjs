@@ -1,0 +1,1449 @@
+commit bda8ed3d6b275fde63fc3227475e98c37efe3b1c
+Author: Istvan Miklos <imiklos2@inf.u-szeged.hu>
+Date:   Tue Nov 20 11:36:26 2018 +0100
+
+    handle-scope
+
+diff --git a/jerry-core/api/jerry.c b/jerry-core/api/jerry.c
+index a7374ff..dad58fb 100644
+--- a/jerry-core/api/jerry.c
++++ b/jerry-core/api/jerry.c
+@@ -21,6 +21,7 @@
+ #include "ecma-arraybuffer-object.h"
+ #include "ecma-builtin-helpers.h"
+ #include "ecma-builtins.h"
++#include "ecma-comparison.h"
+ #include "ecma-exceptions.h"
+ #include "ecma-eval.h"
+ #include "ecma-function-object.h"
+@@ -123,6 +124,24 @@ jerry_make_api_unavailable (void)
+ } /* jerry_make_api_unavailable */
+ 
+ /**
++ * Remove the error flag from the argument value.
++ *
++ * Note:
++ *   Compatiblity function, should go away with JerryScript 2.0
++ *
++ * @return return value for Jerry API functions
++ */
++static inline jerry_value_t
++jerry_get_arg_value (jerry_value_t value) /**< return value */
++{
++  if (JERRY_UNLIKELY (ecma_is_value_error_reference (value)))
++  {
++    value = ecma_get_error_reference_from_value (value)->value;
++  }
++  return value;
++} /* jerry_get_arg_value */
++
++/**
+  * Create an API compatible return value.
+  *
+  * @return return value for Jerry API functions
+@@ -774,6 +793,36 @@ jerry_value_is_undefined (const jerry_value_t value) /**< api value */
+ } /* jerry_value_is_undefined */
+ 
+ /**
++ * Perform strict equality check on the specified two operands.
++ *
++ * @return true  - if the two operands are strictly equal,
++ *         false - otherwise.
++ */
++bool
++jerry_value_strict_equal (const jerry_value_t lhs, const jerry_value_t rhs)
++{
++  jerry_assert_api_available ();
++
++  return ecma_op_strict_equality_compare (lhs, rhs);
++}
++
++
++/**
++ * Perform instanceof check on the specified two operands.
++ *
++ * @return true  - if the left hand side is instance of right hand side,
++ *         false - otherwise.
++ */
++bool
++jerry_value_instanceof (const jerry_value_t value, const jerry_value_t proto)
++{
++  jerry_assert_api_available ();
++
++  ecma_value_t ret = ecma_op_object_has_instance (ecma_get_object_from_value (proto), value);
++  return ecma_is_value_true (ret);
++}
++
++/**
+  * Perform the base type of the JavaScript value.
+  *
+  * @return jerry_type_t value
+@@ -1766,6 +1815,30 @@ jerry_has_property (const jerry_value_t obj_val, /**< object value */
+ } /* jerry_has_property */
+ 
+ /**
++ * Checks whether the object or it's prototype objects have the given property index.
++ *
++ * @return true  - if the property exists
++ *         false - otherwise
++ */
++jerry_value_t
++jerry_has_property_by_index (const jerry_value_t obj_val, /**< object value */
++                             uint32_t index) /**< index to be written */
++{
++  jerry_assert_api_available ();
++
++  jerry_value_t obj_value = jerry_get_arg_value (obj_val);
++  if (!ecma_is_value_object (obj_value))
++  {
++    return jerry_throw (ecma_raise_type_error (ECMA_ERR_MSG (wrong_args_msg_p)));
++  }
++
++  ecma_string_t *str_idx_p = ecma_new_ecma_string_from_uint32 (index);
++  bool has_property = ecma_op_object_has_property (ecma_get_object_from_value (obj_value), str_idx_p);
++
++  return ecma_make_boolean_value (has_property);
++} /* jerry_has_property_by_index */
++
++/**
+  * Checks whether the object has the given property.
+  *
+  * @return true  - if the property exists
+@@ -1790,6 +1863,33 @@ jerry_has_own_property (const jerry_value_t obj_val, /**< object value */
+ } /* jerry_has_own_property */
+ 
+ /**
++ * Checks whether the object has the given property index.
++ *
++ * @return true  - if the property exists
++ *         false - otherwise
++ */
++jerry_value_t
++jerry_has_own_property_by_index (const jerry_value_t obj_val, /**< object value */
++                                 uint32_t index) /**< index to be written */
++{
++  jerry_assert_api_available ();
++
++  jerry_value_t obj_value = jerry_get_arg_value (obj_val);
++
++  if (!ecma_is_value_object (obj_value))
++  {
++    return ecma_make_boolean_value (false);
++  }
++
++  ecma_string_t *str_idx_p = ecma_new_ecma_string_from_uint32 (index);
++  bool has_property = ecma_op_object_has_own_property (ecma_get_object_from_value (obj_value),
++                                                       str_idx_p);
++
++  return ecma_make_boolean_value (has_property);
++} /* jerry_has_own_property_by_index */
++
++
++/**
+  * Delete a property from an object.
+  *
+  * @return true  - if property was deleted successfully
+diff --git a/jerry-core/include/jerryscript-core.h b/jerry-core/include/jerryscript-core.h
+index 86d322e..44ef8b4 100644
+--- a/jerry-core/include/jerryscript-core.h
++++ b/jerry-core/include/jerryscript-core.h
+@@ -345,6 +345,8 @@ bool jerry_value_is_object (const jerry_value_t value);
+ bool jerry_value_is_promise (const jerry_value_t value);
+ bool jerry_value_is_string (const jerry_value_t value);
+ bool jerry_value_is_undefined (const jerry_value_t value);
++bool jerry_value_strict_equal(const jerry_value_t lhs, const jerry_value_t rhs);
++bool jerry_value_instanceof(const jerry_value_t value, const jerry_value_t proto);
+ 
+ /**
+  * JerryScript API value type information.
+@@ -458,7 +460,9 @@ jerry_value_t jerry_create_undefined (void);
+  * General API functions of JS objects.
+  */
+ jerry_value_t jerry_has_property (const jerry_value_t obj_val, const jerry_value_t prop_name_val);
++jerry_value_t jerry_has_property_by_index (const jerry_value_t obj_val, uint32_t index);
+ jerry_value_t jerry_has_own_property (const jerry_value_t obj_val, const jerry_value_t prop_name_val);
++jerry_value_t jerry_has_own_property_by_index (const jerry_value_t obj_val, uint32_t index);
+ bool jerry_delete_property (const jerry_value_t obj_val, const jerry_value_t prop_name_val);
+ bool jerry_delete_property_by_index (const jerry_value_t obj_val, uint32_t index);
+ 
+diff --git a/jerry-ext/CMakeLists.txt b/jerry-ext/CMakeLists.txt
+index 3f04153..26ab579 100644
+--- a/jerry-ext/CMakeLists.txt
++++ b/jerry-ext/CMakeLists.txt
+@@ -33,17 +33,19 @@ if(FEATURE_INIT_FINI)
+ endif()
+ 
+ # Source directories
+-file(GLOB SOURCE_EXT_ARG        arg/*.c)
+-file(GLOB SOURCE_EXT_COMMON     common/*.c)
+-file(GLOB SOURCE_EXT_DEBUGGER   debugger/*.c)
+-file(GLOB SOURCE_EXT_HANDLER    handler/*.c)
+-file(GLOB SOURCE_EXT_MODULE     module/*.c)
++file(GLOB SOURCE_EXT_ARG          arg/*.c)
++file(GLOB SOURCE_EXT_COMMON       common/*.c)
++file(GLOB SOURCE_EXT_DEBUGGER     debugger/*.c)
++file(GLOB SOURCE_EXT_HANDLER      handler/*.c)
++file(GLOB SOURCE_EXT_HANDLE_SCOPE handle-scope/*.c)
++file(GLOB SOURCE_EXT_MODULE       module/*.c)
+ 
+ set(SOURCE_EXT
+     ${SOURCE_EXT_ARG}
+     ${SOURCE_EXT_COMMON}
+     ${SOURCE_EXT_DEBUGGER}
+     ${SOURCE_EXT_HANDLER}
++    ${SOURCE_EXT_HANDLE_SCOPE}
+     ${SOURCE_EXT_MODULE})
+ 
+ add_library(${JERRY_EXT_NAME} ${SOURCE_EXT})
+diff --git a/jerry-ext/handle-scope/handle-scope-allocator.c b/jerry-ext/handle-scope/handle-scope-allocator.c
+new file mode 100644
+index 0000000..25c8a7b
+--- /dev/null
++++ b/jerry-ext/handle-scope/handle-scope-allocator.c
+@@ -0,0 +1,222 @@
++/*
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdlib.h>
++#include "handle-scope-internal.h"
++
++static jerryx_handle_scope_t kJerryXHandleScopeRoot = {
++  .handle_count = 0,
++  .handle_ptr = NULL,
++};
++static jerryx_handle_scope_t *kJerryXHandleScopeCurrent = &kJerryXHandleScopeRoot;
++static jerryx_handle_scope_pool_t kJerryXHandleScopePool = {
++  .count = 0,
++  .start = NULL,
++};
++
++#define kJerryXHandleScopePoolPrelistLast \
++  kJerryXHandleScopePool.prelist + JERRYX_SCOPE_PRELIST_SIZE - 1
++
++#define JerryXHandleScopePrelistIdx(scope) (scope - kJerryXHandleScopePool.prelist)
++
++
++/**
++ * Get current handle scope top of stack.
++ */
++inline
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_current (void)
++{
++  return kJerryXHandleScopeCurrent;
++}
++
++
++/**
++ * Get root handle scope.
++ */
++inline
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_root (void)
++{
++  return &kJerryXHandleScopeRoot;
++}
++
++
++/**
++ * Determines if given handle scope is located in pre-allocated list.
++ */
++static
++inline
++bool
++jerryx_handle_scope_is_in_prelist (jerryx_handle_scope_t *scope)
++{
++  return (kJerryXHandleScopePool.prelist <= scope) &&
++    (scope <= (kJerryXHandleScopePool.prelist + JERRYX_SCOPE_PRELIST_SIZE - 1));
++}
++
++
++/**
++ * Get the parent of given handle scope.
++ * If given handle scope is in prelist, the parent must be in prelist too;
++ * if given is the first item of heap chain list, the parent must be the last one of prelist;
++ * the parent must be in chain list otherwise.
++ */
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_parent (jerryx_handle_scope_t *scope)
++{
++  if (scope == &kJerryXHandleScopeRoot)
++  {
++    return NULL;
++  }
++  if (!jerryx_handle_scope_is_in_prelist (scope))
++  {
++    jerryx_handle_scope_dynamic_t *dy_scope = (jerryx_handle_scope_dynamic_t *) scope;
++    if (dy_scope == kJerryXHandleScopePool.start)
++    {
++      return kJerryXHandleScopePoolPrelistLast;
++    }
++    jerryx_handle_scope_dynamic_t *parent = dy_scope->parent;
++    return (jerryx_handle_scope_t *) parent;
++  }
++  if (scope == kJerryXHandleScopePool.prelist)
++  {
++    return &kJerryXHandleScopeRoot;
++  }
++  return kJerryXHandleScopePool.prelist + JerryXHandleScopePrelistIdx (scope) - 1;
++}
++
++
++/**
++ * Get the child of given handle scope.
++ * If the given handle scope is in heap chain list, its child must be in heap chain list too;
++ * if the given handle scope is the last one of prelist, its child must be the first item of chain list;
++ * the children are in prelist otherwise.
++ */
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_child (jerryx_handle_scope_t *scope)
++{
++  if (scope == &kJerryXHandleScopeRoot)
++  {
++    if (kJerryXHandleScopePool.count > 0) {
++      return kJerryXHandleScopePool.prelist;
++    }
++    return NULL;
++  }
++  if (!jerryx_handle_scope_is_in_prelist (scope))
++  {
++    jerryx_handle_scope_dynamic_t *child = ((jerryx_handle_scope_dynamic_t *) scope)->child;
++    return (jerryx_handle_scope_t *) child;
++  }
++  if (scope == kJerryXHandleScopePoolPrelistLast)
++  {
++    return (jerryx_handle_scope_t *) kJerryXHandleScopePool.start;
++  }
++  long idx = JerryXHandleScopePrelistIdx (scope);
++  if (idx < 0)
++  {
++    return NULL;
++  }
++  if ((unsigned long) idx >= kJerryXHandleScopePool.count - 1)
++  {
++    return NULL;
++  }
++  return kJerryXHandleScopePool.prelist + idx + 1;
++}
++
++
++/**
++ * Claims a handle scope either from prelist or allocating a new memory block,
++ * and increment pool's scope count by 1, and set current scope to the newly claimed one.
++ * If there are still available spaces in prelist, claims a block in prelist;
++ * otherwise allocates a new memory block from heap and sets its fields to default values,
++ * and link it to previously dynamically allocated scope, or link it to pool's start pointer.
++ *
++ * @returns the newly claimed handle scope pointer.
++ */
++jerryx_handle_scope_t *
++jerryx_handle_scope_alloc (void)
++{
++  jerryx_handle_scope_t *scope;
++  if (kJerryXHandleScopePool.count < JERRYX_SCOPE_PRELIST_SIZE)
++  {
++    scope = kJerryXHandleScopePool.prelist + kJerryXHandleScopePool.count;
++    goto deferred;
++  }
++
++  do {
++    jerryx_handle_scope_dynamic_t *dy_scope = malloc (sizeof(jerryx_handle_scope_dynamic_t));
++    JERRYX_HANDLE_SCOPE_ASSERT(dy_scope != NULL);
++    dy_scope->child = NULL;
++
++    if (kJerryXHandleScopePool.count != JERRYX_SCOPE_PRELIST_SIZE)
++    {
++      jerryx_handle_scope_dynamic_t *dy_current = (jerryx_handle_scope_dynamic_t *) kJerryXHandleScopeCurrent;
++      dy_scope->parent = dy_current;
++      dy_current->child = dy_scope;
++    }
++    else
++    {
++      kJerryXHandleScopePool.start = dy_scope;
++      dy_scope->parent = NULL;
++    }
++
++    scope = (jerryx_handle_scope_t *) dy_scope;
++  } while (0);
++
++deferred:
++  scope->handle_count = 0;
++  scope->escaped = false;
++  scope->handle_ptr = NULL;
++
++  kJerryXHandleScopeCurrent = scope;
++  kJerryXHandleScopePool.count += 1;
++  return (jerryx_handle_scope_t *) scope;
++}
++
++
++/**
++ * Deannounce a previously claimed handle scope, return it to pool
++ * or free the allocated memory block.
++ */
++void
++jerryx_handle_scope_free (jerryx_handle_scope_t *scope)
++{
++  if (scope == &kJerryXHandleScopeRoot)
++  {
++    return;
++  }
++
++  kJerryXHandleScopePool.count -= 1;
++  if (scope == kJerryXHandleScopeCurrent) {
++    kJerryXHandleScopeCurrent = jerryx_handle_scope_get_parent(scope);
++  }
++
++  if (!jerryx_handle_scope_is_in_prelist (scope))
++  {
++    jerryx_handle_scope_dynamic_t *dy_scope = (jerryx_handle_scope_dynamic_t *) scope;
++    if (dy_scope == kJerryXHandleScopePool.start)
++    {
++      kJerryXHandleScopePool.start = dy_scope->child;
++    }
++    else if (dy_scope->parent != NULL)
++    {
++      dy_scope->parent->child = dy_scope->child;
++    }
++    free (dy_scope);
++    return;
++  }
++  /**
++   * Nothing to do with scopes in prelist
++   */
++}
+diff --git a/jerry-ext/handle-scope/handle-scope-internal.h b/jerry-ext/handle-scope/handle-scope-internal.h
+new file mode 100644
+index 0000000..36a5a2c
+--- /dev/null
++++ b/jerry-ext/handle-scope/handle-scope-internal.h
+@@ -0,0 +1,87 @@
++/*
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef JERRYX_HANDLE_SCOPE_INTERNAL_H
++#define JERRYX_HANDLE_SCOPE_INTERNAL_H
++
++#include "jerryscript.h"
++#include "jerryscript-port.h"
++#include "jerryscript-ext/handle-scope.h"
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif /* __cplusplus */
++
++#define JERRYX_HANDLE_SCOPE_ASSERT(x) \
++  do \
++  { \
++    if (!(x)) \
++    { \
++      jerry_port_log (JERRY_LOG_LEVEL_ERROR, \
++                      "JerryXHandleScope: Assertion '%s' failed at %s(%s):%lu.\n", \
++                      #x, \
++                      __FILE__, \
++                      __func__, \
++                      (unsigned long) __LINE__); \
++      jerry_port_fatal (ERR_FAILED_INTERNAL_ASSERTION); \
++    } \
++  } while (0)
++
++/** MARK: - handle-scope-allocator.c */
++/**
++ * A linear allocating memory pool for type jerryx_handle_scope_t,
++ * in which allocated item shall be released in reversed order of allocation
++ */
++typedef struct jerryx_handle_scope_pool_s jerryx_handle_scope_pool_t;
++struct jerryx_handle_scope_pool_s {
++  jerryx_handle_scope_t prelist[JERRYX_SCOPE_PRELIST_SIZE];
++  size_t count;
++  jerryx_handle_scope_dynamic_t *start;
++};
++
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_parent (jerryx_handle_scope_t *scope);
++
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_child (jerryx_handle_scope_t *scope);
++
++jerryx_handle_scope_t *
++jerryx_handle_scope_alloc (void);
++
++void
++jerryx_handle_scope_free (jerryx_handle_scope_t *scope);
++/** MARK: - END handle-scope-allocator.c */
++
++/** MARK: - handle-scope.c */
++void
++jerryx_handle_scope_release_handles (jerryx_handle_scope scope);
++
++jerry_value_t
++jerryx_hand_scope_escape_handle_from_prelist (jerryx_handle_scope scope, size_t idx);
++
++jerry_value_t
++jerryx_handle_scope_add_handle_to (jerryx_handle_t *handle, jerryx_handle_scope scope);
++
++jerryx_handle_scope_status
++jerryx_escape_handle_internal (jerryx_escapable_handle_scope scope,
++                               jerry_value_t escapee,
++                               jerry_value_t *result,
++                               bool should_promote);
++/** MARK: - END handle-scope.c */
++
++#ifdef __cplusplus
++}
++#endif /* __cplusplus */
++#endif /* !JERRYX_HANDLE_SCOPE_INTERNAL_H */
+diff --git a/jerry-ext/handle-scope/handle-scope.c b/jerry-ext/handle-scope/handle-scope.c
+new file mode 100644
+index 0000000..f06110c
+--- /dev/null
++++ b/jerry-ext/handle-scope/handle-scope.c
+@@ -0,0 +1,335 @@
++/*
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#include <stdlib.h>
++#include "handle-scope-internal.h"
++
++/**
++ * Opens a new handle scope and attach it to current global scope as a child scope.
++ *
++ * @return status code, jerryx_handle_scope_ok if success.
++ */
++jerryx_handle_scope_status
++jerryx_open_handle_scope (jerryx_handle_scope *result)
++{
++  *result = jerryx_handle_scope_alloc ();
++  return jerryx_handle_scope_ok;
++}
++
++
++/**
++ * Release all jerry values attached to given scope
++ */
++void
++jerryx_handle_scope_release_handles (jerryx_handle_scope scope)
++{
++  size_t handle_count = scope->handle_count;
++  if (scope->handle_count > JERRYX_HANDLE_PRELIST_SIZE)
++  {
++    jerryx_handle_t *a_handle = scope->handle_ptr;
++    while (a_handle != NULL)
++    {
++      jerry_release_value (a_handle->jval);
++      jerryx_handle_t *sibling = a_handle->sibling;
++      free (a_handle);
++      a_handle = sibling;
++    }
++    handle_count = JERRYX_HANDLE_PRELIST_SIZE;
++  }
++
++  for (size_t idx = 0; idx < handle_count; idx++)
++  {
++    jerry_release_value (scope->handle_prelist[idx]);
++  }
++  scope->handle_count = 0;
++}
++
++
++/**
++ * Close the scope and its child scopes and release all jerry values that
++ * resides in the scopes.
++ * Scopes must be closed in the reverse order from which they were created.
++ *
++ * @return status code, jerryx_handle_scope_ok if success.
++ */
++jerryx_handle_scope_status
++jerryx_close_handle_scope (jerryx_handle_scope scope)
++{
++  /**
++   * Release all handles related to given scope and its child scopes
++   */
++  jerryx_handle_scope a_scope = scope;
++  do
++  {
++    jerryx_handle_scope_release_handles (a_scope);
++    jerryx_handle_scope child = jerryx_handle_scope_get_child (a_scope);
++    jerryx_handle_scope_free (a_scope);
++    a_scope = child;
++  } while (a_scope != NULL);
++
++  return jerryx_handle_scope_ok;
++}
++
++
++/**
++ * Opens a new handle scope from which one object can be promoted to the outer scope
++ * and attach it to current global scope as a child scope.
++ *
++ * @return status code, jerryx_handle_scope_ok if success.
++ */
++jerryx_handle_scope_status
++jerryx_open_escapable_handle_scope (jerryx_handle_scope *result)
++{
++  return jerryx_open_handle_scope (result);
++}
++
++
++/**
++ * Close the scope and its child scopes and release all jerry values that
++ * resides in the scopes.
++ * Scopes must be closed in the reverse order from which they were created.
++ *
++ * @return status code, jerryx_handle_scope_ok if success.
++ */
++jerryx_handle_scope_status
++jerryx_close_escapable_handle_scope (jerryx_handle_scope scope)
++{
++  return jerryx_close_handle_scope (scope);
++}
++
++
++/**
++ * Escape a jerry value from the scope, yet did not promote it to outer scope.
++ * An assertion of if parent exists shall be made before invoking this function.
++ *
++ * @returns escaped jerry value id
++ */
++jerry_value_t
++jerryx_hand_scope_escape_handle_from_prelist (jerryx_handle_scope scope, size_t idx)
++{
++  jerry_value_t jval = scope->handle_prelist[idx];
++  if (scope->handle_count > JERRYX_HANDLE_PRELIST_SIZE)
++  {
++    jerryx_handle_t *handle = scope->handle_ptr;
++    scope->handle_ptr = handle->sibling;
++    scope->handle_prelist[idx] = handle->jval;
++    return jval;
++  }
++
++  if (idx < JERRYX_HANDLE_PRELIST_SIZE - 1)
++  {
++    scope->handle_prelist[idx] = scope->handle_prelist[scope->handle_count - 1];
++  }
++  return jval;
++}
++
++
++jerryx_handle_scope_status
++jerryx_escape_handle_internal (jerryx_escapable_handle_scope scope,
++                               jerry_value_t escapee,
++                               jerry_value_t *result,
++                               bool should_promote)
++{
++  if (scope->escaped)
++  {
++    return jerryx_escape_called_twice;
++  }
++
++  jerryx_handle_scope parent = jerryx_handle_scope_get_parent (scope);
++  if (parent == NULL)
++  {
++    return jerryx_handle_scope_mismatch;
++  }
++
++  bool found = false;
++  {
++    size_t found_idx = 0;
++    size_t prelist_count =
++      scope->handle_count < JERRYX_HANDLE_PRELIST_SIZE ?
++        scope->handle_count :
++        JERRYX_HANDLE_PRELIST_SIZE;
++    /**
++     * Search prelist in a reversed order since last added handle
++     * is possible the one to be escaped
++     */
++    for (size_t idx_plus_1 = prelist_count; idx_plus_1 > 0; --idx_plus_1)
++    {
++      if (escapee == scope->handle_prelist[idx_plus_1 - 1])
++      {
++        found = true;
++        found_idx = idx_plus_1 - 1;
++        break;
++      }
++    }
++
++    if (found)
++    {
++      *result = jerryx_hand_scope_escape_handle_from_prelist (scope, found_idx);
++      if (should_promote)
++      {
++        /**
++         * Escape handle to parent scope
++         */
++        jerryx_create_handle_in_scope (*result, jerryx_handle_scope_get_parent (scope));
++      }
++      goto deferred;
++    }
++  };
++
++  if (scope->handle_count <= JERRYX_HANDLE_PRELIST_SIZE)
++  {
++    return jerryx_handle_scope_mismatch;
++  }
++
++  /**
++   * Handle chain list is already in an reversed order,
++   * search through it as it is
++   */
++  jerryx_handle_t *handle = scope->handle_ptr;
++  jerryx_handle_t *memo_handle = NULL;
++  jerryx_handle_t *found_handle = NULL;
++  while (!found)
++  {
++    if (handle == NULL)
++    {
++      return jerryx_handle_scope_mismatch;
++    }
++    if (handle->jval != escapee)
++    {
++      memo_handle = handle;
++      handle = handle->sibling;
++      continue;
++    }
++    /**
++     * Remove found handle from current scope's handle chain
++     */
++    found = true;
++    found_handle = handle;
++    if (memo_handle == NULL)
++    {
++      // found handle is the first handle in heap
++      scope->handle_ptr = found_handle->sibling;
++    }
++    else
++    {
++      memo_handle->sibling = found_handle->sibling;
++    }
++  }
++
++  if (should_promote)
++  {
++    /**
++     * Escape handle to parent scope
++     */
++    *result = jerryx_handle_scope_add_handle_to (found_handle, parent);
++  }
++
++deferred:
++  scope->handle_count -= 1;
++  if (should_promote)
++  {
++    scope->escaped = true;
++  }
++  return jerryx_handle_scope_ok;
++}
++
++
++/**
++ * Promotes the handle to the JavaScript object so that it is valid for the lifetime of
++ * the outer scope. It can only be called once per scope. If it is called more than
++ * once an error will be returned.
++ *
++ * @return status code, jerryx_handle_scope_ok if success.
++ */
++jerryx_handle_scope_status
++jerryx_escape_handle (jerryx_escapable_handle_scope scope,
++                      jerry_value_t escapee,
++                      jerry_value_t *result)
++{
++  return jerryx_escape_handle_internal (scope, escapee, result, true);
++}
++
++
++/**
++ * Escape a handle from scope yet do not promote it to the outer scope.
++ * Leave the handle's life time management up to user.
++ *
++ * @return status code, jerryx_handle_scope_ok if success.
++ */
++jerryx_handle_scope_status
++jerryx_remove_handle (jerryx_escapable_handle_scope scope,
++                      jerry_value_t escapee,
++                      jerry_value_t *result)
++{
++  return jerryx_escape_handle_internal (scope, escapee, result, false);
++}
++
++
++/**
++ * Try to reuse given handle if possible while adding to the scope.
++ *
++ * @returns the jerry value id wrapped by given handle.
++ */
++jerry_value_t
++jerryx_handle_scope_add_handle_to (jerryx_handle_t *handle, jerryx_handle_scope scope)
++{
++  size_t handle_count = scope->handle_count;
++  scope->handle_count += 1;
++  if (handle_count < JERRYX_HANDLE_PRELIST_SIZE)
++  {
++    jerry_value_t jval = handle->jval;
++    free (handle);
++    scope->handle_prelist[handle_count] = jval;
++    return jval;
++  }
++
++  handle->sibling = scope->handle_ptr;
++  scope->handle_ptr = handle;
++  return handle->jval;
++}
++
++
++/**
++ * Add given jerry value to the scope.
++ */
++jerry_value_t
++jerryx_create_handle_in_scope (jerry_value_t jval, jerryx_handle_scope scope)
++{
++  size_t handle_count = scope->handle_count;
++  if (handle_count < JERRYX_HANDLE_PRELIST_SIZE)
++  {
++    scope->handle_prelist[handle_count] = jval;
++    goto deferred;
++  }
++  jerryx_handle_t *handle = malloc (sizeof(jerryx_handle_t));
++  JERRYX_HANDLE_SCOPE_ASSERT(handle != NULL);
++  handle->jval = jval;
++
++  handle->sibling = scope->handle_ptr;
++  scope->handle_ptr = handle;
++
++deferred:
++  scope->handle_count += 1;
++  return jval;
++}
++
++
++/**
++ * Add given jerry value to current top scope.
++ */
++jerry_value_t
++jerryx_create_handle (jerry_value_t jval)
++{
++  return jerryx_create_handle_in_scope (jval, jerryx_handle_scope_get_current ());
++}
+diff --git a/jerry-ext/include/jerryscript-ext/handle-scope.h b/jerry-ext/include/jerryscript-ext/handle-scope.h
+new file mode 100644
+index 0000000..3841bc0
+--- /dev/null
++++ b/jerry-ext/include/jerryscript-ext/handle-scope.h
+@@ -0,0 +1,112 @@
++/*
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++#ifndef JERRYX_HANDLE_SCOPE_H
++#define JERRYX_HANDLE_SCOPE_H
++
++#include "jerryscript.h"
++
++#ifdef __cplusplus
++extern "C"
++{
++#endif /* __cplusplus */
++
++#ifndef JERRYX_HANDLE_PRELIST_SIZE
++#define JERRYX_HANDLE_PRELIST_SIZE 20
++#endif
++
++#ifndef JERRYX_SCOPE_PRELIST_SIZE
++#define JERRYX_SCOPE_PRELIST_SIZE 20
++#endif
++
++typedef struct jerryx_handle_t jerryx_handle_t;
++struct jerryx_handle_t {
++  jerry_value_t jval;
++  jerryx_handle_t *sibling;
++};
++
++#define JERRYX_HANDLE_SCOPE_FIELDS                          \
++  jerry_value_t handle_prelist[JERRYX_HANDLE_PRELIST_SIZE]; \
++  size_t handle_count;                                      \
++  bool escaped;                                             \
++  jerryx_handle_t *handle_ptr
++
++typedef struct jerryx_handle_scope_s jerryx_handle_scope_t;
++typedef jerryx_handle_scope_t *jerryx_handle_scope;
++typedef jerryx_handle_scope_t *jerryx_escapable_handle_scope;
++struct jerryx_handle_scope_s {
++  JERRYX_HANDLE_SCOPE_FIELDS;
++};
++
++
++typedef struct jerryx_handle_scope_dynamic_s jerryx_handle_scope_dynamic_t;
++struct jerryx_handle_scope_dynamic_s {
++  JERRYX_HANDLE_SCOPE_FIELDS;
++  jerryx_handle_scope_dynamic_t *child;
++  jerryx_handle_scope_dynamic_t *parent;
++};
++
++#undef JERRYX_HANDLE_SCOPE_FIELDS
++
++typedef enum {
++  jerryx_handle_scope_ok = 0,
++
++  jerryx_escape_called_twice,
++  jerryx_handle_scope_mismatch,
++} jerryx_handle_scope_status;
++
++jerryx_handle_scope_status
++jerryx_open_handle_scope (jerryx_handle_scope *result);
++
++jerryx_handle_scope_status
++jerryx_close_handle_scope (jerryx_handle_scope scope);
++
++jerryx_handle_scope_status
++jerryx_open_escapable_handle_scope (jerryx_handle_scope *result);
++
++jerryx_handle_scope_status
++jerryx_close_escapable_handle_scope (jerryx_handle_scope scope);
++
++jerryx_handle_scope_status
++jerryx_escape_handle (jerryx_escapable_handle_scope scope,
++                      jerry_value_t escapee,
++                      jerry_value_t *result);
++
++/**
++ * Completely escape a handle from handle scope,
++ * leave life time management totally up to user.
++ */
++jerryx_handle_scope_status
++jerryx_remove_handle (jerryx_escapable_handle_scope scope,
++                      jerry_value_t escapee,
++                      jerry_value_t *result);
++
++jerry_value_t
++jerryx_create_handle (jerry_value_t jval);
++
++jerry_value_t
++jerryx_create_handle_in_scope (jerry_value_t jval, jerryx_handle_scope scope);
++
++/** MARK: - handle-scope-allocator.c */
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_current (void);
++
++jerryx_handle_scope_t *
++jerryx_handle_scope_get_root (void);
++/** MARK: - END handle-scope-allocator.c */
++
++#ifdef __cplusplus
++}
++#endif /* __cplusplus */
++#endif /* !JERRYX_HANDLE_SCOPE_H */
+diff --git a/tests/unit-core/test-api.c b/tests/unit-core/test-api.c
+index 873d262..4263a27 100644
+--- a/tests/unit-core/test-api.c
++++ b/tests/unit-core/test-api.c
+@@ -898,6 +898,13 @@ main (void)
+   jerry_set_property_by_index (array_obj_val, 5, v_in);
+   jerry_value_t v_out = jerry_get_property_by_index (array_obj_val, 5);
+ 
++  jerry_value_t v_has_out = jerry_has_property_by_index (array_obj_val, 5);
++  TEST_ASSERT (jerry_value_to_boolean (v_has_out) == true);
++  jerry_delete_property_by_index (array_obj_val, 5);
++
++  jerry_value_t v_has_after_del_out = jerry_has_property_by_index (array_obj_val, 5);
++  TEST_ASSERT (jerry_value_to_boolean (v_has_after_del_out) == false);
++
+   TEST_ASSERT (jerry_value_is_number (v_out)
+                && jerry_get_number_value (v_out) == 10.5);
+ 
+diff --git a/tests/unit-ext/test-ext-handle-scope-escape.c b/tests/unit-ext/test-ext-handle-scope-escape.c
+new file mode 100644
+index 0000000..10a3779
+--- /dev/null
++++ b/tests/unit-ext/test-ext-handle-scope-escape.c
+@@ -0,0 +1,81 @@
++/* Copyright JS Foundation and other contributors, http://js.foundation
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++/**
++ * Unit test for jerry-ext/handle-scope.
++ */
++
++#include "jerryscript.h"
++#include "jerryscript-ext/handle-scope.h"
++#include "test-common.h"
++
++static int native_free_cb_call_count;
++
++static void
++native_free_cb (void *native_p)
++{
++  ++native_free_cb_call_count;
++  (void) native_p;
++} /* native_free_cb */
++
++static const jerry_object_native_info_t native_info =
++{
++  .free_cb = native_free_cb,
++};
++
++static jerry_value_t
++create_object (void)
++{
++  jerryx_escapable_handle_scope scope;
++  jerryx_open_escapable_handle_scope (&scope);
++  jerry_value_t obj = jerryx_create_handle (jerry_create_object ());
++  jerry_set_object_native_pointer (obj, NULL, &native_info);
++
++  // If leaves `escaped` uninitialized, there will be a style error on linux thrown by compiler
++  jerry_value_t escaped = 0;
++  jerryx_escape_handle (scope, obj, &escaped);
++  TEST_ASSERT (scope->handle_count == 0);
++
++  jerryx_close_handle_scope (scope);
++  return escaped;
++} /* create_object */
++
++static void
++test_handle_scope_val (void)
++{
++  jerryx_handle_scope scope;
++  jerryx_open_handle_scope (&scope);
++  jerry_value_t obj = create_object ();
++  (void) obj;
++
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == 0);
++
++  jerryx_close_handle_scope (scope);
++} /* test_handle_scope_val */
++
++int
++main (void)
++{
++  jerry_init (JERRY_INIT_EMPTY);
++
++  native_free_cb_call_count = 0;
++  test_handle_scope_val ();
++
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == 1);
++
++  jerry_cleanup ();
++} /* main */
+diff --git a/tests/unit-ext/test-ext-handle-scope-handle-prelist-escape.c b/tests/unit-ext/test-ext-handle-scope-handle-prelist-escape.c
+new file mode 100644
+index 0000000..3f7235d
+--- /dev/null
++++ b/tests/unit-ext/test-ext-handle-scope-handle-prelist-escape.c
+@@ -0,0 +1,89 @@
++/* Copyright JS Foundation and other contributors, http://js.foundation
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++/**
++ * Unit test for jerry-ext/handle-scope-handle-prelist-escape.
++ *
++ * Tests escaping jerry value that holds on scope's prelist.
++ */
++
++#include "jerryscript.h"
++#include "jerryscript-ext/handle-scope.h"
++#include "test-common.h"
++
++static size_t native_free_cb_call_count;
++static const size_t handle_count = JERRYX_HANDLE_PRELIST_SIZE + 1;
++
++static void
++native_free_cb (void *native_p)
++{
++  ++native_free_cb_call_count;
++  (void) native_p;
++} /* native_free_cb */
++
++static const jerry_object_native_info_t native_info =
++{
++  .free_cb = native_free_cb,
++};
++
++static jerry_value_t
++create_object (void)
++{
++  jerryx_escapable_handle_scope scope;
++  jerryx_open_escapable_handle_scope (&scope);
++
++  jerry_value_t obj;
++  for (size_t idx = 0; idx < handle_count; idx ++)
++  {
++    obj = jerryx_create_handle (jerry_create_object ());
++    jerry_set_object_native_pointer (obj, NULL, &native_info);
++  }
++
++  // If leaves `escaped` uninitialized, there will be a style error on linux thrown by compiler
++  jerry_value_t escaped = 0;
++  jerryx_escape_handle (scope, obj, &escaped);
++  TEST_ASSERT (scope->handle_count == (handle_count -1));
++
++  jerryx_close_handle_scope (scope);
++  return escaped;
++} /* create_object */
++
++static void
++test_handle_scope_val (void)
++{
++  jerryx_handle_scope scope;
++  jerryx_open_handle_scope (&scope);
++  jerry_value_t obj = create_object ();
++  (void) obj;
++
++  jerry_gc (JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == (handle_count -1));
++
++  jerryx_close_handle_scope (scope);
++} /* test_handle_scope_val */
++
++int
++main (void)
++{
++  jerry_init (JERRY_INIT_EMPTY);
++
++  native_free_cb_call_count = 0;
++  test_handle_scope_val ();
++
++  jerry_gc (JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == handle_count);
++
++  jerry_cleanup ();
++} /* main */
+diff --git a/tests/unit-ext/test-ext-handle-scope-handle-prelist.c b/tests/unit-ext/test-ext-handle-scope-handle-prelist.c
+new file mode 100644
+index 0000000..4d9d21b
+--- /dev/null
++++ b/tests/unit-ext/test-ext-handle-scope-handle-prelist.c
+@@ -0,0 +1,89 @@
++/* Copyright JS Foundation and other contributors, http://js.foundation
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++/**
++ * Unit test for jerry-ext/handle-scope-handle-prelist.
++ *
++ * Tests escaping jerry value that holds on scope's handle heap.
++ */
++
++#include "jerryscript.h"
++#include "jerryscript-ext/handle-scope.h"
++#include "test-common.h"
++
++static size_t native_free_cb_call_count;
++static const size_t handle_count = JERRYX_HANDLE_PRELIST_SIZE * 2;
++
++static void
++native_free_cb (void *native_p)
++{
++  ++native_free_cb_call_count;
++  (void) native_p;
++} /* native_free_cb */
++
++static const jerry_object_native_info_t native_info =
++{
++  .free_cb = native_free_cb,
++};
++
++static jerry_value_t
++create_object (void)
++{
++  jerryx_escapable_handle_scope scope;
++  jerryx_open_escapable_handle_scope (&scope);
++
++  jerry_value_t obj;
++  for (size_t idx = 0; idx < handle_count; idx ++)
++  {
++    obj = jerryx_create_handle (jerry_create_object ());
++    jerry_set_object_native_pointer (obj, NULL, &native_info);
++  }
++
++  // If leaves `escaped` uninitialized, there will be a style error on linux thrown by compiler
++  jerry_value_t escaped = 0;
++  jerryx_escape_handle (scope, obj, &escaped);
++  TEST_ASSERT (scope->handle_count == (handle_count -1));
++
++  jerryx_close_handle_scope (scope);
++  return escaped;
++} /* create_object */
++
++static void
++test_handle_scope_val (void)
++{
++  jerryx_handle_scope scope;
++  jerryx_open_handle_scope (&scope);
++  jerry_value_t obj = create_object ();
++  (void) obj;
++
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == (handle_count -1));
++
++  jerryx_close_handle_scope (scope);
++} /* test_handle_scope_val */
++
++int
++main (void)
++{
++  jerry_init (JERRY_INIT_EMPTY);
++
++  native_free_cb_call_count = 0;
++  test_handle_scope_val ();
++
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == handle_count);
++
++  jerry_cleanup ();
++} /* main */
+diff --git a/tests/unit-ext/test-ext-handle-scope-nested.c b/tests/unit-ext/test-ext-handle-scope-nested.c
+new file mode 100644
+index 0000000..eae9c3a
+--- /dev/null
++++ b/tests/unit-ext/test-ext-handle-scope-nested.c
+@@ -0,0 +1,98 @@
++/* Copyright JS Foundation and other contributors, http://js.foundation
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++/**
++ * Unit test for jerry-ext/handle-scope.
++ *
++ * Tests escaping jerry value that passed from scopes which are created on heap.
++ * Also reallocates scopes for one times to test if reallocation works.
++ */
++
++#include "jerryscript.h"
++#include "jerryscript-ext/handle-scope.h"
++#include "test-common.h"
++
++static int native_free_cb_call_count;
++
++static void
++native_free_cb (void *native_p)
++{
++  ++native_free_cb_call_count;
++  (void) native_p;
++} /* native_free_cb */
++
++static const jerry_object_native_info_t native_info =
++{
++  .free_cb = native_free_cb,
++};
++
++static jerry_value_t
++create_object_nested (int times)
++{
++  jerryx_escapable_handle_scope scope;
++  jerryx_open_escapable_handle_scope (&scope);
++
++  jerry_value_t obj;
++  if (times == 0)
++  {
++    obj = jerryx_create_handle (jerry_create_object ());
++    jerry_set_object_native_pointer (obj, NULL, &native_info);
++  }
++  else
++  {
++    obj = create_object_nested (times - 1);
++  }
++
++  // If leaves `escaped` uninitialized, there will be a style error on linux thrown by compiler
++  jerry_value_t escaped = 0;
++  int status = jerryx_escape_handle (scope, obj, &escaped);
++  TEST_ASSERT (status == 0);
++  TEST_ASSERT (scope->handle_count == 0);
++
++  jerryx_close_handle_scope (scope);
++  return escaped;
++} /* create_object */
++
++static void
++test_handle_scope_val (void)
++{
++  jerryx_handle_scope scope;
++  jerryx_open_handle_scope (&scope);
++
++  for (int idx = 0; idx < 2; ++idx)
++  {
++    jerry_value_t obj = create_object_nested (JERRYX_SCOPE_PRELIST_SIZE * 2);
++    (void) obj;
++  }
++
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == 0);
++
++  jerryx_close_handle_scope (scope);
++} /* test_handle_scope_val */
++
++int
++main (void)
++{
++  jerry_init (JERRY_INIT_EMPTY);
++
++  native_free_cb_call_count = 0;
++  test_handle_scope_val ();
++
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == 2);
++
++  jerry_cleanup ();
++} /* main */
+diff --git a/tests/unit-ext/test-ext-handle-scope.c b/tests/unit-ext/test-ext-handle-scope.c
+new file mode 100644
+index 0000000..28da196
+--- /dev/null
++++ b/tests/unit-ext/test-ext-handle-scope.c
+@@ -0,0 +1,67 @@
++/* Copyright JS Foundation and other contributors, http://js.foundation
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *     http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++/**
++ * Unit test for jerry-ext/handle-scope.
++ */
++
++#include "jerryscript.h"
++#include "jerryscript-ext/handle-scope.h"
++#include "test-common.h"
++
++static int native_free_cb_call_count;
++
++static void
++native_free_cb (void *native_p)
++{
++  ++native_free_cb_call_count;
++  (void) native_p;
++} /* native_free_cb */
++
++static const jerry_object_native_info_t native_info =
++{
++  .free_cb = native_free_cb,
++};
++
++static jerry_value_t
++create_object (void)
++{
++  jerry_value_t obj = jerry_create_object ();
++  jerry_set_object_native_pointer (obj, NULL, &native_info);
++  return obj;
++} /* create_object */
++
++static void
++test_handle_scope_val (void)
++{
++  jerryx_handle_scope scope;
++  jerryx_open_handle_scope (&scope);
++  jerry_value_t obj = jerryx_create_handle (create_object ());
++  (void) obj;
++  jerryx_close_handle_scope (scope);
++} /* test_handle_scope_val */
++
++int
++main (void)
++{
++  jerry_init (JERRY_INIT_EMPTY);
++
++  native_free_cb_call_count = 0;
++  test_handle_scope_val ();
++  jerry_gc(JERRY_GC_SEVERITY_LOW);
++  TEST_ASSERT (native_free_cb_call_count == 1);
++
++  jerry_cleanup ();
++} /* main */

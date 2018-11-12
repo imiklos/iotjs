@@ -80,7 +80,7 @@ CHECK_C_COMPILER_FLAG(-no-pie HAS_NO_PIE)
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   iotjs_add_compile_flags(-DDEBUG -DENABLE_DEBUG_LOG)
   if(HAS_NO_PIE AND NOT "${TARGET_OS}" STREQUAL "darwin")
-    iotjs_add_link_flags(-no-pie)
+    #iotjs_add_link_flags(-no-pie)
   endif()
 endif()
 

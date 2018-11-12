@@ -18,7 +18,7 @@
 #include "iotjs.h"
 #include "iotjs_js.h"
 #include "iotjs_string_ext.h"
-
+#include "internal/node_api_internal.h"
 #include "jerryscript-ext/debugger.h"
 #if !defined(__NUTTX__) && !defined(__TIZENRT__)
 #include "jerryscript-port-default.h"
@@ -178,7 +178,7 @@ void iotjs_run(iotjs_environment_t* env) {
 
 static int iotjs_start(iotjs_environment_t* env) {
   iotjs_environment_set_state(env, kRunningMain);
-
+  iotjs_setup_napi();
   // Load and call iotjs.js.
   iotjs_run(env);
 
@@ -232,7 +232,7 @@ void iotjs_end(iotjs_environment_t* env) {
 void iotjs_terminate(iotjs_environment_t* env) {
   // Release builtin modules.
   iotjs_module_list_cleanup();
-
+  iotjs_cleanup_napi();
   // Release JerryScript engine.
   jerry_cleanup();
 }
