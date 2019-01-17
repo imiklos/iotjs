@@ -74,6 +74,23 @@ napi_status napi_create_external(napi_env env, void* data,
   NAPI_RETURN(napi_ok);
 }
 
+napi_status napi_create_external_buffer(napi_env env, size_t length, void* data,
+                                        napi_finalize finalize_cb,
+                                        void* finalize_hint,
+                                        napi_value* result) {
+  NAPI_TRY_ENV(env);
+  char *nval = NULL;
+  napi_value res;
+  NAPI_INTERNAL_CALL(napi_create_buffer_copy(env, length, data, (void **)&nval, &res));
+  iotjs_object_info_t* info = NAPI_GET_OBJECT_INFO(AS_JERRY_VALUE(result));
+  info->native_object = nval;
+  info->finalize_cb = finalize_cb;
+  info->finalize_hint = finalize_hint;
+
+  NAPI_ASSIGN(result, res);
+  NAPI_RETURN(napi_ok);
+}
+
 napi_status napi_create_object(napi_env env, napi_value* result) {
   NAPI_TRY_ENV(env);
   JERRYX_CREATE(jval, jerry_create_object());
