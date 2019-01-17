@@ -1,19 +1,13 @@
-commit 626f80e139dbf5fa3007f0578db6f429184602cc
-Author: Istvan Miklos <imiklos2@inf.u-szeged.hu>
-Date:   Wed Nov 21 13:32:24 2018 +0100
-
-    comment -fPIC
-
 diff --git a/cmake/libtuv.cmake b/cmake/libtuv.cmake
-index e844672..b99e0e6 100644
+index 8299f1f..2da89c8 100644
 --- a/cmake/libtuv.cmake
 +++ b/cmake/libtuv.cmake
-@@ -66,7 +66,7 @@ if (DEFINED CREATE_SHARED_LIB AND CREATE_SHARED_LIB STREQUAL "yes")
+@@ -80,7 +80,7 @@ if (DEFINED CREATE_SHARED_LIB AND CREATE_SHARED_LIB STREQUAL "yes")
    target_include_directories(${TARGETSHAREDLIBNAME} PUBLIC ${LIB_TUV_INCDIRS})
    set_target_properties(${TARGETSHAREDLIBNAME} PROPERTIES
        LIBRARY_OUTPUT_DIRECTORY "${LIB_OUT}"
 -      COMPILE_FLAGS -fPIC
 +      #COMPILE_FLAGS -fPIC
        OUTPUT_NAME tuv)
- endif()
- 
+ install(TARGETS ${TARGETSHAREDLIBNAME} LIBRARY
+   DESTINATION "${libdir}")
