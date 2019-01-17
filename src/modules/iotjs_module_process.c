@@ -17,7 +17,7 @@
 #include "iotjs_compatibility.h"
 #include "iotjs_js.h"
 #include "jerryscript-debugger.h"
-
+#include <unistd.h>
 #include <stdlib.h>
 
 
@@ -368,6 +368,7 @@ jerry_value_t InitProcess() {
   iotjs_jval_set_method(process, IOTJS_MAGIC_STRING_CWD, Cwd);
   iotjs_jval_set_method(process, IOTJS_MAGIC_STRING_CHDIR, Chdir);
   iotjs_jval_set_method(process, IOTJS_MAGIC_STRING_DOEXIT, DoExit);
+  iotjs_jval_set_property_jval(process, "pid", jerry_create_number(getpid()));
   SetProcessEnv(process);
 
   // process.builtin_modules
