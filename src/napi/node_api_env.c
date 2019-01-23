@@ -127,11 +127,14 @@ napi_status napi_throw(napi_env env, napi_value error) {
     NAPI_TRY_ENV(env);                                                       \
     NAPI_TRY_NO_PENDING_EXCEPTION(env);                                      \
                                                                              \
-    JERRYX_CREATE(jval_error,                                                \
-                  jerry_create_error(jerry_error_type, (jerry_char_t*)msg)); \
+    jerry_value_t jval_error =                                               \
+                  jerry_create_error(jerry_error_type, (jerry_char_t*)msg);  \
     if (code != NULL) {                                                      \
+      jval_error = jerry_get_value_from_error (jval_error, true);            \
       iotjs_jval_set_property_string_raw(jval_error, "code", code);          \
+      jval_error = jerry_create_error_from_value (jval_error, true);         \
     }                                                                        \
+    jerryx_create_handle(jval_error);                                        \
     return napi_throw(env, AS_NAPI_VALUE(jval_error));                       \
   }
 
