@@ -91,8 +91,8 @@ extern void force_terminate();
 #endif /* TARGET_BOARD */
 
 #define NODE_MAJOR_VERSION 1
-#define NODE_MINOR_VERSION 1
-#define NODE_PATCH_VERSION 1
+#define NODE_MINOR_VERSION 0
+#define NODE_PATCH_VERSION 0
 
 /* Avoid compiler warnings if needed. */
 #define IOTJS_UNUSED(x) ((void)(x))

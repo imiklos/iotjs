@@ -92,7 +92,7 @@ JS_FUNCTION(OpenNativeModule) {
 
   jerry_value_t exports;
 
-// #ifdef ENABLE_NAPI
+#ifdef ENABLE_NAPI
   int status = napi_module_init_pending(&exports);
   if (status == napi_module_load_ok) {
     return exports;
@@ -107,7 +107,7 @@ JS_FUNCTION(OpenNativeModule) {
         (jerry_char_t*)"Module has no declared entry point.");
     return jval_error;
   }
-// #endif
+#endif
 
   void (*init_fn)(jerry_value_t);
   init_fn = dlsym(handle, "iotjs_module_register");
