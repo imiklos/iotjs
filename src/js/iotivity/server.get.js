@@ -17,7 +17,7 @@ var intervalId,
 
 	// This is the same value as server.get.js
 	sampleUri = "/a/iotivity-node-get-sample",
-	iotivity = require( "../../../node_modules/iotivity-node/build/Release/iotivity.node" );
+	iotivity = require( "node_modules/iotivity-node/build/Debug/iotivity.node" );
 
 console.log( "Starting OCF stack in server mode" );
 

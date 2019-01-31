@@ -347,13 +347,17 @@ endforeach()
 # Common compile flags
 iotjs_add_compile_flags(-Wall)
 if(NOT USING_MSVC)
-  iotjs_add_compile_flags(-Wextra -Wno-unused-parameter)
+  iotjs_add_compile_flags(-Wextra -Werror -Wno-unused-parameter)
   iotjs_add_compile_flags(-Wsign-conversion -std=gnu99)
 endif()
 
 if(ENABLE_SNAPSHOT)
   set(JS2C_SNAPSHOT_ARG --snapshot-tool=${JERRY_HOST_SNAPSHOT})
   iotjs_add_compile_flags(-DENABLE_SNAPSHOT)
+endif()
+
+if(ENABLE_NAPI)
+  iotjs_add_compile_flags(-DENABLE_NAPI)
 endif()
 
 # Run js2c
@@ -413,7 +417,9 @@ foreach(MODULE_EXTRA_CMAKE_FILE ${EXTRA_CMAKE_FILES})
 endforeach()
 
 set(IOTJS_NAPI_SRC)
-  file(GLOB IOTJS_NAPI_SRC ${IOTJS_SOURCE_DIR}/napi/*.c)
+if (ENABLE_NAPI)
+    file(GLOB IOTJS_NAPI_SRC ${IOTJS_SOURCE_DIR}/napi/*.c)
+endif()
 
 # Collect all sources into LIB_IOTJS_SRC
 file(GLOB LIB_IOTJS_SRC ${IOTJS_SOURCE_DIR}/*.c)
@@ -422,7 +428,7 @@ list(APPEND LIB_IOTJS_SRC
   ${IOTJS_SOURCE_DIR}/iotjs_js.h
   ${IOTJS_NATIVE_MODULE_SRC}
   ${IOTJS_PLATFORM_SRC}
-	${IOTJS_NAPI_SRC}
+  ${IOTJS_NAPI_SRC}
 )
 
 separate_arguments(EXTERNAL_INCLUDE_DIR)
@@ -459,6 +465,7 @@ message(STATUS "CMAKE_BUILD_TYPE         ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_C_FLAGS            ${CMAKE_C_FLAGS}")
 message(STATUS "CMAKE_TOOLCHAIN_FILE     ${CMAKE_TOOLCHAIN_FILE}")
 message(STATUS "ENABLE_LTO               ${ENABLE_LTO}")
+message(STATUS "ENABLE_NAPI              ${ENABLE_NAPI}")
 message(STATUS "ENABLE_SNAPSHOT          ${ENABLE_SNAPSHOT}")
 message(STATUS "EXTERNAL_INCLUDE_DIR     ${EXTERNAL_INCLUDE_DIR}")
 message(STATUS "EXTERNAL_LIBC_INTERFACE  ${EXTERNAL_LIBC_INTERFACE}")
@@ -476,6 +483,7 @@ message(STATUS "TARGET_OS                ${TARGET_OS}")
 message(STATUS "TARGET_SYSTEMROOT        ${TARGET_SYSTEMROOT}")
 
 iotjs_add_compile_flags(${IOTJS_MODULE_DEFINES})
+
 if(FEATURE_DEBUGGER)
   iotjs_add_compile_flags("-DJERRY_DEBUGGER")
 endif()
@@ -485,92 +493,30 @@ file(GLOB JERRY_HEADERS "${ROOT_DIR}/deps/jerry/jerry-core/include/*.h")
 file(GLOB LIBUV_HEADERS "${ROOT_DIR}/deps/libtuv/include/*.h")
 
 set(IOTJS_PUBLIC_HEADERS
-  "${ROOT_DIR}/include/iotjs.h"
-  "${ROOT_DIR}/include/node_api.h"
-  "${ROOT_DIR}/include/node_api_types.h"
+  "include/iotjs.h"
+  "include/node_api.h"
+  "include/node_api_types.h"
   ${IOTJS_HEADERS}
   ${JERRY_HEADERS}
   ${LIBUV_HEADERS}
 )
 
-# Configure the libiotjs.a
-# set(TARGET_STATIC_IOTJS libiotjs)
-# add_library(${TARGET_STATIC_IOTJS} STATIC ${LIB_IOTJS_SRC})
-# set_target_properties(${TARGET_STATIC_IOTJS} PROPERTIES
-#   OUTPUT_NAME iotjs
-#   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-# )
-# target_include_directories(${TARGET_STATIC_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
-# target_link_libraries(${TARGET_STATIC_IOTJS}
-#   ${JERRY_LIBS}
-#   ${TUV_LIBS}
-#   libhttp-parser
-#   ${MBEDTLS_LIBS}
-#   ${EXTERNAL_LIBS}
-# )
-#
-# if("${LIB_INSTALL_DIR}" STREQUAL "")
-#   set(LIB_INSTALL_DIR "lib")
-# endif()
-#
-# if("${BIN_INSTALL_DIR}" STREQUAL "")
-#   set(BIN_INSTALL_DIR "bin")
-# endif()
-#
-# install(TARGETS ${TARGET_STATIC_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
-#
-# # Install headers
-# if("${INCLUDE_INSTALL_DIR}" STREQUAL "")
-#   set(INCLUDE_INSTALL_DIR "include/iotjs")
-# endif()
-# file(GLOB IOTJS_HEADERS include/*.h)
-# install(FILES ${IOTJS_HEADERS} DESTINATION ${INCLUDE_INSTALL_DIR})
-#
-# # Configure the libiotjs.so
-# if (NOT BUILD_LIB_ONLY AND CREATE_SHARED_LIB)
-#   set(TARGET_SHARED_IOTJS shared_iotjs)
-#   add_library(${TARGET_SHARED_IOTJS} SHARED)
-#   set_target_properties(${TARGET_SHARED_IOTJS} PROPERTIES
-#     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-#     LIBRARY_OUTPUT_NAME iotjs
-#     LINKER_LANGUAGE C
-#   )
-#   target_link_libraries(${TARGET_SHARED_IOTJS}
-#     -Wl,--whole-archive
-#     ${TARGET_STATIC_IOTJS}
-#     ${JERRY_LIBS}
-#     ${TUV_LIBS}
-#     libhttp-parser
-#     ${MBEDTLS_LIBS}
-#     -Wl,--no-whole-archive
-#     ${EXTERNAL_LIBS})
-#   install(TARGETS ${TARGET_SHARED_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
-# endif()
-#
-# # Configure the iotjs executable
-# if(NOT BUILD_LIB_ONLY)
-#   set(TARGET_IOTJS iotjs)
-#   add_executable(${TARGET_IOTJS} ${ROOT_DIR}/src/platform/linux/iotjs_linux.c)
-#   set_target_properties(${TARGET_IOTJS} PROPERTIES
-#     LINK_FLAGS "${IOTJS_LINKER_FLAGS}"
-#     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-#   )
-#   target_include_directories(${TARGET_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
-#   target_link_libraries(${TARGET_IOTJS} ${TARGET_STATIC_IOTJS})
-#   install(TARGETS ${TARGET_IOTJS} DESTINATION ${BIN_INSTALL_DIR})
-#
-#   add_subdirectory(test)
-# endif()
 # Configure the libiotjs
 set(TARGET_LIB_IOTJS libiotjs)
-add_library(${TARGET_LIB_IOTJS} SHARED ${LIB_IOTJS_SRC})
+if(CREATE_SHARED_LIB)
+  add_library(${TARGET_LIB_IOTJS} SHARED ${LIB_IOTJS_SRC})
+else()
+  add_library(${TARGET_LIB_IOTJS} STATIC ${LIB_IOTJS_SRC})
+endif(CREATE_SHARED_LIB)
+
 add_dependencies(${TARGET_LIB_IOTJS}
   ${JERRY_LIBS}
   ${TUV_LIBS}
   libhttp-parser
   ${MBEDTLS_LIBS}
-	${EXTERNAL_LIBS}
+  ${MQTT_LIBS}
 )
+
 set_target_properties(${TARGET_LIB_IOTJS} PROPERTIES
   OUTPUT_NAME iotjs
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
@@ -585,6 +531,8 @@ target_link_libraries(${TARGET_LIB_IOTJS}
   ${TUV_LIBS}
   libhttp-parser
   ${MBEDTLS_LIBS}
+  ${MQTT_LIBS}
+  ${DBUS_LIBRARY_DIRS}
   ${EXTERNAL_LIBS}
 )
 
@@ -610,10 +558,16 @@ if(NOT BUILD_LIB_ONLY)
   )
   target_include_directories(${TARGET_IOTJS} PRIVATE ${IOTJS_INCLUDE_DIRS})
   target_link_libraries(${TARGET_IOTJS} ${TARGET_LIB_IOTJS})
-  install(TARGETS ${TARGET_IOTJS} ${TARGET_LIB_IOTJS}
+  install(TARGETS ${TARGET_IOTJS}
           RUNTIME DESTINATION "${INSTALL_PREFIX}/bin"
           LIBRARY DESTINATION "${INSTALL_PREFIX}/lib"
           PUBLIC_HEADER DESTINATION "${INSTALL_PREFIX}/include/iotjs")
+  if(CREATE_SHARED_LIB)
+    install(TARGETS ${TARGET_LIB_IOTJS}
+            RUNTIME DESTINATION "${INSTALL_PREFIX}/bin"
+            LIBRARY DESTINATION "${INSTALL_PREFIX}/lib"
+            PUBLIC_HEADER DESTINATION "${INSTALL_PREFIX}/include/iotjs")
+  endif()
 else()
   install(TARGETS ${TARGET_LIB_IOTJS} DESTINATION ${LIB_INSTALL_DIR})
 endif()
