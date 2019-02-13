@@ -42,8 +42,7 @@ napi_status napi_define_class(napi_env env, const char* utf8name, size_t length,
   }
 
   NAPI_ASSIGN(result, nval);
-
-  jerry_release_value(AS_JERRY_VALUE(nval));
+  // jerry_release_value(AS_JERRY_VALUE(nval));
   NAPI_RETURN(napi_ok);
 }
 
