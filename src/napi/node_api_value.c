@@ -59,21 +59,6 @@ napi_status napi_create_buffer_copy(napi_env env, size_t size, const void* data,
   NAPI_RETURN(napi_ok);
 }
 
-napi_status napi_create_external(napi_env env, void* data,
-                                 napi_finalize finalize_cb, void* finalize_hint,
-                                 napi_value* result) {
-  NAPI_TRY_ENV(env);
-  napi_value nval;
-  NAPI_INTERNAL_CALL(napi_create_object(env, &nval));
-  iotjs_object_info_t* info = NAPI_GET_OBJECT_INFO(AS_JERRY_VALUE(nval));
-  info->native_object = data;
-  info->finalize_cb = finalize_cb;
-  info->finalize_hint = finalize_hint;
-
-  NAPI_ASSIGN(result, nval);
-  NAPI_RETURN(napi_ok);
-}
-
 napi_status napi_create_external_buffer(napi_env env, size_t length, void* data,
                                         napi_finalize finalize_cb,
                                         void* finalize_hint,
@@ -82,10 +67,6 @@ napi_status napi_create_external_buffer(napi_env env, size_t length, void* data,
   char *nval = NULL;
   napi_value res;
   NAPI_INTERNAL_CALL(napi_create_buffer_copy(env, length, data, (void **)&nval, &res));
-  iotjs_object_info_t* info = NAPI_GET_OBJECT_INFO(AS_JERRY_VALUE(result));
-  info->native_object = nval;
-  info->finalize_cb = finalize_cb;
-  info->finalize_hint = finalize_hint;
 
   NAPI_ASSIGN(result, res);
   NAPI_RETURN(napi_ok);
@@ -300,17 +281,11 @@ DEF_NAPI_COERCE_TO(string, string);
 
 napi_status napi_typeof(napi_env env, napi_value value,
                         napi_valuetype* result) {
+  // TODO: napi_extarnal is unsupported
+
   NAPI_TRY_ENV(env);
   jerry_value_t jval = AS_JERRY_VALUE(value);
   jerry_type_t type = jerry_value_get_type(jval);
-
-  iotjs_object_info_t* info = NAPI_TRY_GET_OBJECT_INFO(jval);
-  if (type == JERRY_TYPE_OBJECT && info != NULL &&
-      ((info->native_object != NULL) || (info->finalize_cb != NULL) ||
-       (info->finalize_hint != NULL))) {
-    NAPI_ASSIGN(result, napi_external);
-    NAPI_RETURN(napi_ok);
-  }
 
 #define MAP(jerry, napi)       \
   case jerry:                  \

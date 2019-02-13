@@ -67,8 +67,11 @@ iotjs_object_info_t* iotjs_get_object_native_info(jerry_value_t jval,
 iotjs_object_info_t* iotjs_try_get_object_native_info(jerry_value_t jval,
                                                       size_t native_info_size) {
   iotjs_object_info_t* info = NULL;
-  jerry_get_object_native_pointer(jval, (void**)&info, NULL);
-  return info;
+  if (jerry_get_object_native_pointer(jval, (void**)&info, NULL)) {
+    return info;
+  }
+
+  return NULL;
 }
 
 napi_status napi_open_handle_scope(napi_env env, napi_handle_scope* result) {
