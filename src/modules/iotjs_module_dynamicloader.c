@@ -131,7 +131,6 @@ JS_FUNCTION(OpenNativeModule) {
 
 
 jerry_value_t InitDynamicloader() {
-
   jerry_value_t loader = jerry_create_object();
   iotjs_jval_set_method(loader, "dynamicloader", DLload);
   iotjs_jval_set_method(loader, "OpenNativeModule", OpenNativeModule);

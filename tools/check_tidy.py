@@ -226,6 +226,8 @@ def check_tidy(src_dir, options=None):
                   'ble_hci_socket_mgmt.js',
                   'ble_hci_socket_bindings.js',
                   'ble_characteristic.js',
+                  'node_api.h',
+                  'node_api_types.h',
                   'test_ble_setservices.js',
                   '.eslintrc.js'
                   ]

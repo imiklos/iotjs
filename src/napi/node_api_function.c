@@ -78,7 +78,7 @@ static jerry_value_t iotjs_napi_function_handler(
    * invocation
    * - for error values: error values has been acquired on thrown
    */
-   jerry_acquire_value(jval_ret);
+  jerry_acquire_value(jval_ret);
 
 cleanup:
   jerryx_close_handle_scope(scope);

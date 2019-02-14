@@ -14,8 +14,8 @@
  */
 
 #include "jerryscript-ext/handle-scope.h"
-#include "internal/node_api_internal.h"
 #include <stdlib.h>
+#include "internal/node_api_internal.h"
 
 static void native_info_free(void* native_info) {
   iotjs_object_info_t* info = (iotjs_object_info_t*)native_info;
