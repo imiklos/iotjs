@@ -15,8 +15,8 @@
 
 #include "iotjs_def.h"
 #include <execinfo.h>
-#include "internal/node_api_internal.h"
 #include <stdlib.h>
+#include "internal/node_api_internal.h"
 
 #ifndef NAPI_FATAL_BACKTRACE_LEN
 #define NAPI_FATAL_BACKTRACE_LEN 10
@@ -25,8 +25,7 @@
 static const char* NAPI_GENERIC_ERROR_MESSAGE = "Unexpected error.";
 
 static iotjs_napi_env_t current_env = {
-  .pending_exception = NULL,
-  .pending_fatal_exception = NULL,
+  .pending_exception = NULL, .pending_fatal_exception = NULL,
 };
 
 inline napi_env iotjs_get_current_napi_env() {
@@ -121,21 +120,21 @@ napi_status napi_throw(napi_env env, napi_value error) {
   return napi_ok;
 }
 
-#define DEF_NAPI_THROWS(type, jerry_error_type)                              \
-  napi_status napi_throw_##type(napi_env env, const char* code,              \
-                                const char* msg) {                           \
-    NAPI_TRY_ENV(env);                                                       \
-    NAPI_TRY_NO_PENDING_EXCEPTION(env);                                      \
-                                                                             \
-    jerry_value_t jval_error =                                               \
-                  jerry_create_error(jerry_error_type, (jerry_char_t*)msg);  \
-    if (code != NULL) {                                                      \
-      jval_error = jerry_get_value_from_error (jval_error, true);            \
-      iotjs_jval_set_property_string_raw(jval_error, "code", code);          \
-      jval_error = jerry_create_error_from_value (jval_error, true);         \
-    }                                                                        \
-    jerryx_create_handle(jval_error);                                        \
-    return napi_throw(env, AS_NAPI_VALUE(jval_error));                       \
+#define DEF_NAPI_THROWS(type, jerry_error_type)                     \
+  napi_status napi_throw_##type(napi_env env, const char* code,     \
+                                const char* msg) {                  \
+    NAPI_TRY_ENV(env);                                              \
+    NAPI_TRY_NO_PENDING_EXCEPTION(env);                             \
+                                                                    \
+    jerry_value_t jval_error =                                      \
+        jerry_create_error(jerry_error_type, (jerry_char_t*)msg);   \
+    if (code != NULL) {                                             \
+      jval_error = jerry_get_value_from_error(jval_error, true);    \
+      iotjs_jval_set_property_string_raw(jval_error, "code", code); \
+      jval_error = jerry_create_error_from_value(jval_error, true); \
+    }                                                               \
+    jerryx_create_handle(jval_error);                               \
+    return napi_throw(env, AS_NAPI_VALUE(jval_error));              \
   }
 
 DEF_NAPI_THROWS(error, JERRY_ERROR_COMMON);

@@ -64,9 +64,10 @@ napi_status napi_create_external_buffer(napi_env env, size_t length, void* data,
                                         void* finalize_hint,
                                         napi_value* result) {
   NAPI_TRY_ENV(env);
-  char *nval = NULL;
+  char* nval = NULL;
   napi_value res;
-  NAPI_INTERNAL_CALL(napi_create_buffer_copy(env, length, data, (void **)&nval, &res));
+  NAPI_INTERNAL_CALL(
+      napi_create_buffer_copy(env, length, data, (void**)&nval, &res));
 
   NAPI_ASSIGN(result, res);
   NAPI_RETURN(napi_ok);
@@ -97,7 +98,7 @@ napi_status napi_create_object(napi_env env, napi_value* result) {
     raw_msg[msg_size] = '\0';                                                 \
                                                                               \
     jerry_value_t jval_error = jerry_create_error(jerry_error_type, raw_msg); \
-    jval_error = jerry_create_error_from_value(jval_error, true);                               \
+    jval_error = jerry_create_error_from_value(jval_error, true);             \
     /**                                                                       \
      * reference count of error flag cleared jerry_value_t is separated       \
      * from its error reference, so it has be added to scope after clearing   \

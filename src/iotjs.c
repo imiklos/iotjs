@@ -18,8 +18,8 @@
 #include "iotjs.h"
 #include "iotjs_js.h"
 #include "iotjs_string_ext.h"
-#include "internal/node_api_internal.h"
 #include "jerryscript-ext/debugger.h"
+#include "internal/node_api_internal.h"
 #if !defined(__NUTTX__) && !defined(__TIZENRT__)
 #include "jerryscript-port-default.h"
 #endif

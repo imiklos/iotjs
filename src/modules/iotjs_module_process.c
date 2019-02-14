@@ -17,8 +17,8 @@
 #include "iotjs_compatibility.h"
 #include "iotjs_js.h"
 #include "jerryscript-debugger.h"
-#include <unistd.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 
 static jerry_value_t WrapEval(const char* name, size_t name_len,
