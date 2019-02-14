@@ -507,6 +507,15 @@ if(CREATE_SHARED_LIB)
   add_library(${TARGET_LIB_IOTJS} SHARED ${LIB_IOTJS_SRC})
 else()
   add_library(${TARGET_LIB_IOTJS} STATIC ${LIB_IOTJS_SRC})
+
+  # Force symbols to be entered in the output file as undefined symbols.
+  file(READ "${IOTJS_SOURCE_DIR}/napi/node_symbols.txt" NODE_SYMBOLS)
+  string(REGEX REPLACE "[\r|\n]" ";" NODE_SYMBOLS "${NODE_SYMBOLS}")
+  set(NODE_SYMBOLS_LINK_FLAGS "-Wl")
+  foreach(NODE_SYMBOL ${NODE_SYMBOLS})
+    set(NODE_SYMBOLS_LINK_FLAGS "${NODE_SYMBOLS_LINK_FLAGS},-u,${NODE_SYMBOL}")
+  endforeach()
+  iotjs_add_link_flags(${NODE_SYMBOLS_LINK_FLAGS})
 endif(CREATE_SHARED_LIB)
 
 add_dependencies(${TARGET_LIB_IOTJS}
