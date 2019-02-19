@@ -63,7 +63,9 @@
     return timers[mode].apply(this, Array.prototype.slice.call(arguments, 1));
   };
 
+
   global.setTimeout = _timeoutHandler.bind(this, 'setTimeout');
+  global.setImmediet = _timeoutHandler.bind(this, 'setImmediet');
   global.setInterval = _timeoutHandler.bind(this, 'setInterval');
   global.clearTimeout = _timeoutHandler.bind(this, 'clearTimeout');
   global.clearInterval = _timeoutHandler.bind(this, 'clearInterval');

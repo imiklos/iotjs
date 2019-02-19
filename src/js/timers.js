@@ -67,15 +67,25 @@ Timeout.prototype.unref = function() {
     this.handler = undefined;
   }
 };
+// TODO: add proper name
+var types = {
+  setTimeout : 0,
+  setInterval : 1,
+  setImmediet : 2,
+}
 
-function timeoutConfigurator(isrepeat, callback, delay) {
+function timeoutConfigurator(type, callback, delay) {
   if (!util.isFunction(callback)) {
     throw new TypeError('Bad arguments: callback must be a Function');
   }
 
-  delay *= 1;
-  if (delay < 1 || delay > TIMEOUT_MAX) {
-    delay = 1;
+  if (type === types.setImmediet) {
+    delay = 0;
+  } else {
+    delay *= 1;
+    if (delay < 1 || delay > TIMEOUT_MAX) {
+      delay = 1;
+    }
   }
 
   var timeout = new Timeout(delay);
@@ -88,14 +98,15 @@ function timeoutConfigurator(isrepeat, callback, delay) {
     args.splice(0, 0, timeout);
     timeout.callback = callback.bind.apply(callback, args);
   }
-  timeout.isrepeat = isrepeat;
+  timeout.isrepeat = type == types.setInterval;
   timeout.ref();
 
   return timeout;
 }
 
-exports.setTimeout = timeoutConfigurator.bind(undefined, false);
-exports.setInterval = timeoutConfigurator.bind(undefined, true);
+exports.setTimeout = timeoutConfigurator.bind(undefined, types.setTimeout);
+exports.setInterval = timeoutConfigurator.bind(undefined, types.setInterval);
+exports.setImmediet = timeoutConfigurator.bind(undefined, types.setImmediet);
 
 function clearTimeoutBase(timeoutType, timeout) {
   if (timeout) {
