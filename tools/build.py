@@ -403,7 +403,7 @@ def run_checktest(options):
 
     if options.run_test == "quiet":
         args.append('--quiet')
-
+    args.append('--n-api')
     fs.chdir(path.PROJECT_ROOT)
     code = ex.run_cmd(cmd, args)
     if code != 0:

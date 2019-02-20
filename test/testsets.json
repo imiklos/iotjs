@@ -1196,5 +1196,13 @@
         "mymodule2"
       ]
     }
+  ],
+  "napi": [
+    { "name": "napi_arguments_return_this.test.js"},
+    { "name": "napi_arguments_return.test.js"},
+    { "name": "napi_arguments_throw.test.js"},
+    { "name": "napi_construct.test.js"},
+    { "name": "napi_string.test.js" },
+    { "name": "napi.test.js" }
   ]
 }
