@@ -313,11 +313,15 @@ class TestRunner(object):
 
 
 def build_napi_test_module():
+    node_gyp = fs.join(path.PROJECT_ROOT,
+                       'node_modules',
+                       '.bin',
+                       'node-gyp')
+
     print('==> Build N-API test module with node-gyp\n')
 
     project_root = fs.join(path.PROJECT_ROOT, 'test', 'napi')
-    Executor.check_run_cmd("node-gyp", ['configure'], cwd=project_root)
-    Executor.check_run_cmd("node-gyp", ['build'], cwd=project_root)
+    Executor.check_run_cmd(node_gyp, ['configure', 'rebuild'], cwd=project_root)
 
 
 def get_args():
