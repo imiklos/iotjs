@@ -13,6 +13,10 @@
       "sources": [ "napi_construct.c" ]
     },
     {
+      "target_name": "napi_error_handling",
+      "sources": [ "napi_error_handling.c" ]
+    },
+    {
       "target_name": "napi_string",
       "sources": [ "napi_string.c" ]
     }

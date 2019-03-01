@@ -98,19 +98,20 @@ napi_status napi_create_object(napi_env env, napi_value* result) {
     raw_msg[msg_size] = '\0';                                                 \
                                                                               \
     jerry_value_t jval_error = jerry_create_error(jerry_error_type, raw_msg); \
-    jval_error = jerry_create_error_from_value(jval_error, true);             \
     /**                                                                       \
      * reference count of error flag cleared jerry_value_t is separated       \
      * from its error reference, so it has be added to scope after clearing   \
      * error flag.                                                            \
      */                                                                       \
-    jerryx_create_handle(jval_error);                                         \
     /** code has to be an JS string type, thus it can not be an number 0 */   \
     if (code != NULL) {                                                       \
       NAPI_TRY_TYPE(string, jval_code);                                       \
+      jval_error = jerry_get_value_from_error(jval_error, true);              \
       iotjs_jval_set_property_jval(jval_error, IOTJS_MAGIC_STRING_CODE,       \
                                    jval_code);                                \
     }                                                                         \
+                                                                              \
+    jerryx_create_handle(jval_error);                                         \
     NAPI_ASSIGN(result, AS_NAPI_VALUE(jval_error));                           \
                                                                               \
     NAPI_RETURN(napi_ok);                                                     \
@@ -349,11 +350,12 @@ napi_status napi_is_buffer(napi_env env, napi_value value, bool* result) {
 napi_status napi_is_error(napi_env env, napi_value value, bool* result) {
   NAPI_TRY_ENV(env);
   jerry_value_t jval = AS_JERRY_VALUE(value);
-  /**
-   * TODO: Pick jerrysciprt#ba2e49caaa6703dec7a83fb0b8586a91fac060eb to use
-   * function `jerry_value_is_error`
-   */
-  NAPI_ASSIGN(result, jerry_value_is_error(jval));
+  jerry_value_t jval_global = jerry_get_global_object();
+  jerry_value_t jval_error =
+      iotjs_jval_get_property(jval_global, "Error");
+  NAPI_ASSIGN(result, jerry_value_instanceof(jval, jval_error));
+  jerry_release_value(jval_error);
+  jerry_release_value(jval_global);
   NAPI_RETURN(napi_ok);
 }
 

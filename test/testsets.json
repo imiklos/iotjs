@@ -1203,6 +1203,10 @@
     { "name": "napi_arguments_throw.test.js"},
     { "name": "napi_construct.test.js"},
     { "name": "napi_string.test.js" },
-    { "name": "napi.test.js" }
+    { "name": "napi.test.js" },
+    { "name": "test_napi_throw.js" },
+    { "name": "test_napi_throw_error.js" },
+    { "name": "test_napi_create_error.js" },
+    { "name": "test_napi_exception.js" }
   ]
 }

@@ -112,7 +112,6 @@ napi_status napi_throw(napi_env env, napi_value error) {
 
   if (!jerry_value_is_error(jval_err)) {
     jval_err = jerry_create_error_from_value(jval_err, true);
-    // jerry_value_set_error_flag(&jval_err);
   }
 
   curr_env->pending_exception = AS_NAPI_VALUE(jval_err);
@@ -142,6 +141,7 @@ DEF_NAPI_THROWS(type_error, JERRY_ERROR_TYPE);
 DEF_NAPI_THROWS(range_error, JERRY_ERROR_RANGE);
 #undef DEF_NAPI_THROWS
 
+//This method invokes an 'uncaughtException', only when jerry-debugger is off
 napi_status napi_fatal_exception(napi_env env, napi_value err) {
   NAPI_TRY_ENV(env);
   NAPI_TRY_NO_PENDING_EXCEPTION(env);
@@ -155,9 +155,8 @@ napi_status napi_fatal_exception(napi_env env, napi_value err) {
    */
   jval_err = jerry_acquire_value(jval_err);
 
-  if (!jerry_value_is_error(jval_err)) {
-    jval_err = jerry_create_error_from_value(jval_err, true);
-    // jerry_value_set_error_flag(&jval_err);
+  if (!jerry_value_is_abort(jval_err)) {
+    jval_err = jerry_create_abort_from_value(jval_err, true);
   }
 
   curr_env->pending_fatal_exception = AS_NAPI_VALUE(jval_err);
@@ -183,25 +182,20 @@ napi_status napi_get_and_clear_last_exception(napi_env env,
   if (curr_env->pending_exception != NULL) {
     error = curr_env->pending_exception;
     curr_env->pending_exception = NULL;
-  } else {
+  } else if (curr_env->pending_fatal_exception != NULL) {
     error = curr_env->pending_fatal_exception;
     curr_env->pending_fatal_exception = NULL;
+  } else {
+    error = AS_NAPI_VALUE(jerry_create_undefined());
   }
 
-  jerry_value_t jval_err = AS_JERRY_VALUE(error);
-  jval_err = jerry_get_value_from_error(jval_err, true);
-  // jerry_value_clear_error_flag(&jval_err);
+  jerry_value_t jval_err =
+                jerry_get_value_from_error(AS_JERRY_VALUE(error), true);
 
-  /**
-   * the error object has been aquired on thrown, it has to be released
-   * before returning
-   */
-  jerry_release_value(jval_err);
   NAPI_ASSIGN(result, AS_NAPI_VALUE(jval_err));
   /** should not clear last error info */
   return napi_ok;
 }
-
 
 napi_status napi_get_last_error_info(napi_env env,
                                      const napi_extended_error_info** result) {
