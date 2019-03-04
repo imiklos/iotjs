@@ -71,7 +71,7 @@ Timeout.prototype.unref = function() {
 var types = {
   setTimeout : 0,
   setInterval : 1,
-  setImmediet : 2,
+  setImmediate : 2,
 }
 
 function timeoutConfigurator(type, callback, delay) {
@@ -79,7 +79,7 @@ function timeoutConfigurator(type, callback, delay) {
     throw new TypeError('Bad arguments: callback must be a Function');
   }
 
-  if (type === types.setImmediet) {
+  if (type === types.setImmediate) {
     delay = 0;
   } else {
     delay *= 1;
@@ -106,7 +106,7 @@ function timeoutConfigurator(type, callback, delay) {
 
 exports.setTimeout = timeoutConfigurator.bind(undefined, types.setTimeout);
 exports.setInterval = timeoutConfigurator.bind(undefined, types.setInterval);
-exports.setImmediet = timeoutConfigurator.bind(undefined, types.setImmediet);
+exports.setImmediate = timeoutConfigurator.bind(undefined, types.setImmediate);
 
 function clearTimeoutBase(timeoutType, timeout) {
   if (timeout) {
